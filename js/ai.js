@@ -174,7 +174,17 @@ export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable,
   if (level === 'casual') {
     // any play worth at least 75% of the best one, weighted towards the better ones.
     // `rand` must be deterministic for a given turn state (the driver re-asks after every hold).
-    const pool = options.filter((o) => o.value >= pick.value * 0.75 && o.value > 0);
+    // ...but never a play that throws away dice from the best set: nobody rerolls three Cundangas,
+    // even when the maths says every option is worth about the same.
+    const core = [0, 0, 0, 0, 0, 0];
+    if (hand.count >= 2) { core[hand.face - 1] = T.hands[h][hand.face - 1]; core[5] += T.hands[h][5]; }
+    const keepsCore = (o) => o.sub < 0 || T.subs[o.sub].every((c, f) => c >= core[f]);
+    let pool = options.filter((o) => o.value >= pick.value * 0.75 && o.value > 0 && keepsCore(o));
+    if (pool.length === 0) {
+      const kept = options.filter(keepsCore);
+      pick = kept.reduce((a, b) => (b.value > a.value ? b : a), kept[0]);
+      pool = [pick];
+    }
     if (pool.length > 1) {
       const weights = pool.map((o) => (o.value / pick.value) ** 3);
       let r = rand() * weights.reduce((a, b) => a + b, 0);

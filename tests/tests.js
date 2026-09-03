@@ -395,6 +395,18 @@ test('casual is deterministic for a seed and never picks a poor play', () => {
     ok(!d.hold[4] || d.hold[0], 'kept the Negro over the As');
   }
 });
+test('casual never throws away dice from its best set, even when nothing can win', () => {
+  const spots = [
+    { dice: 'Q Q Q J 9', rollsUsed: 2, isOpener: false, bestOnTable: H('K K K K 9'), opponentsAfter: 0, rollCap: 3, core: [true, true, true, false, false] },
+    { dice: 'Q Q Q J 9', rollsUsed: 1, isOpener: true, bestOnTable: null, opponentsAfter: 5, rollCap: null, core: [true, true, true, false, false] },
+    { dice: 'A K 10 J 9', rollsUsed: 1, isOpener: false, bestOnTable: H('K K K J 9'), opponentsAfter: 1, rollCap: 3, core: [true, true, false, false, false] },
+    { dice: '9 9 10 J Q', rollsUsed: 1, isOpener: false, bestOnTable: H('Q Q Q Q 9'), opponentsAfter: 0, rollCap: 3, core: [true, true, false, false, false] },
+  ];
+  for (const sp of spots) for (let i = 0; i < 60; i++) {
+    const d = AI.decide({ dice: R.parseDice(sp.dice), held: NOHOLD, rollsUsed: sp.rollsUsed, maxRolls: 3, isOpener: sp.isOpener, bestOnTable: sp.bestOnTable, opponentsAfter: sp.opponentsAfter, rollCap: sp.rollCap }, { level: 'casual', style: 'cautious' }, AI.seededRand(sp.dice + i));
+    if (!d.stop) sp.core.forEach((c, j) => { if (c) ok(d.hold[j], `${sp.dice} seed ${i}: dropped die ${j} -> ${JSON.stringify(d)}`); });
+  }
+});
 test('casual play is legal and sometimes differs from sharp on close calls', () => {
   let differs = 0, total = 0;
   for (const hand of ['K K 9 9 J', 'K K Q J 9', 'K Q J 10 9', 'Q Q J J 9', 'K K K 9 9']) {
