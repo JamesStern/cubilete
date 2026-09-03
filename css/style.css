@@ -305,11 +305,7 @@ html, body { background: var(--mahogany-deep); }
 }
 .setup .box h2 { font-family: var(--serif-head); font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--cohiba); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; }
 .setup .box h2 small { font-family: var(--serif-body); text-transform: none; letter-spacing: 0; font-size: 12px; opacity: .8; }
-.seatrow { display: grid; grid-template-columns: 18px 1fr 28px; grid-template-areas: "idx name rm" ". opts opts"; gap: 6px 8px; align-items: center; margin-bottom: 10px; }
-.seatrow .idx { grid-area: idx; }
-.seatrow input { grid-area: name; }
-.seatrow .rm { grid-area: rm; }
-.seatrow .opts { grid-area: opts; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seatrow { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .seatrow .idx { font-family: var(--numeral); font-size: 18px; width: 18px; color: var(--cohiba); text-align: center; }
 .seatrow input {
   flex: 1; min-width: 0; background: rgba(241,230,200,.08); border: 1px solid rgba(241,230,200,.3); color: var(--ivory);
@@ -396,12 +392,12 @@ html, body { background: var(--mahogany-deep); }
 .hintbtn:active { background: rgba(245,184,46,.15); }
 .felt-hint.hinting { color: var(--cohiba); text-transform: none; letter-spacing: .02em; font-family: var(--serif-body); font-style: italic; font-size: 13px; }
 
-.seatrow .type button { padding: 8px 7px; font-size: 11px; }
+
 .seatrow .lvl { display: flex; border: 1px solid rgba(241,230,200,.3); border-radius: 8px; overflow: hidden; }
 .seatrow .lvl button { background: none; border: 0; padding: 8px 6px; font-size: 10px; letter-spacing: .04em; font-family: var(--serif-head); text-transform: uppercase; color: var(--bone); opacity: .8; }
 .seatrow .lvl button.on { background: rgba(241,230,200,.9); color: #1a0e06; opacity: 1; }
 .seatrow .lvl.hidden { visibility: hidden; }
-.setup .targetrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 10px 0 2px; font-size: 13px; color: var(--bone); }
+.setup .targetrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0 2px; font-size: 13px; color: var(--bone); }
 .setup .targetrow .seg button { padding: 7px 12px; }
 
 .ledger { text-align: left; }

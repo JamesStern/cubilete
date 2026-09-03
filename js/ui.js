@@ -153,7 +153,7 @@ function doRoll() {
 function rivalName() { const h = state.players.find((p) => p.type === 'human'); return h ? h.name : 'Hudson'; }
 function say(idx, event, params = {}) {
   const p = state.players[idx];
-  if (!p || p.type !== 'ai' || ui.resumePrompt) return;
+  if (!state.settings.barTalk || !p || p.type !== 'ai' || ui.resumePrompt) return;
   const seed = (state.round ? state.round.number : 0) * 31 + idx * 7 + event.length;
   const text = personaLine(p.persona, event, getLang(), { rival: rivalName(), ...params }, seed);
   if (!text) return;
@@ -216,6 +216,8 @@ function loadSeats() {
   return seats;
 }
 let target = 10;
+let level = 'sharp';
+try { const lv = localStorage.getItem('cubilete.level'); if (lv === 'casual' || lv === 'sharp') level = lv; } catch (_) { /* ignore */ }
 try { const tv = Number(localStorage.getItem(TARGET_KEY)); if ([5, 10, 15].includes(tv)) target = tv; else if ([5, 10, 15].includes(state.lastTarget)) target = state.lastTarget; } catch (_) { /* ignore */ }
 function saveSeats() { try { localStorage.setItem(SEATS_KEY, JSON.stringify(seats)); } catch (_) { /* ignore */ } }
 
@@ -241,6 +243,7 @@ function renderSetup() {
         <div id="seats"></div>
         <div class="addrow"><button id="add-seat">${t('setup.addSeat')}</button></div>
         <div class="targetrow"><span id="target-label">${t('setup.target', { n: target })}</span><div class="seg" id="target-seg">${[5, 10, 15].map((n) => `<button data-n="${n}" class="${target === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+        <div class="targetrow"><span>${t('setup.levelLabel')}</span><div class="seg" id="level-seg"><button data-l="casual" class="${level === 'casual' ? 'on' : ''}">${t('setup.level.casual')}</button><button data-l="sharp" class="${level === 'sharp' ? 'on' : ''}">${t('setup.level.sharp')}</button></div></div>
       </div>
     </div>
     <div class="foot">
@@ -258,12 +261,18 @@ function renderSetup() {
     app.querySelectorAll('#target-seg button').forEach((x) => x.classList.toggle('on', Number(x.dataset.n) === target));
     app.querySelector('#target-label').textContent = t('setup.target', { n: target });
   });
+  app.querySelector('#level-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-l]'); if (!b) return;
+    level = b.dataset.l; S.play('click');
+    try { localStorage.setItem('cubilete.level', level); } catch (_) { /* ignore */ }
+    app.querySelectorAll('#level-seg button').forEach((x) => x.classList.toggle('on', x.dataset.l === level));
+  });
   app.querySelector('#open-ledger').addEventListener('click', () => { S.play('click'); openLedger(); });
   app.querySelector('#lang-toggle').addEventListener('click', () => { S.play('click'); switchLang(LANGS.find((l) => l !== getLang())); });
   app.querySelector('#start').addEventListener('click', () => {
     saveSeats();
     ui.screen = '';
-    dispatch({ type: 'SETUP_CONFIRM', targetPatas: target, players: seats.map((s) => ({ name: s.name, type: s.type, level: s.level })) });
+    dispatch({ type: 'SETUP_CONFIRM', targetPatas: target, players: seats.map((s) => ({ name: s.name, type: s.type, level })) });
   });
   app.querySelector('#open-rules').addEventListener('click', () => { ui.rulesOpen = true; renderOverlay(); });
   app.querySelector('#open-settings').addEventListener('click', () => { ui.settingsOpen = true; renderOverlay(); });
@@ -275,18 +284,14 @@ function renderSeats() {
     <div class="seatrow" data-i="${i}">
       <span class="idx">${i + 1}</span>
       <input type="text" maxlength="16" value="${esc(s.name)}" placeholder="${G.DEFAULT_NAMES[i] || t('seat.name')}" autocapitalize="words" enterkeyhint="done">
+      <div class="type"><button data-t="human" class="${s.type === 'human' ? 'on' : ''}">${t('seat.human')}</button><button data-t="ai" class="${s.type === 'ai' ? 'on' : ''}">${t('seat.ai')}</button></div>
       <button class="rm" ${seats.length <= 2 ? 'disabled style="visibility:hidden"' : ''} aria-label="remove">×</button>
-      <div class="opts">
-        <div class="type"><button data-t="human" class="${s.type === 'human' ? 'on' : ''}">${t('seat.human')}</button><button data-t="ai" class="${s.type === 'ai' ? 'on' : ''}">${t('seat.ai')}</button></div>
-        <div class="lvl ${s.type === 'ai' ? '' : 'hidden'}"><button data-l="casual" class="${s.level === 'casual' ? 'on' : ''}">${t('setup.level.casual')}</button><button data-l="sharp" class="${s.level !== 'casual' ? 'on' : ''}">${t('setup.level.sharp')}</button></div>
-      </div>
     </div>`).join('');
   box.querySelectorAll('.seatrow').forEach((row) => {
     const i = Number(row.dataset.i);
     row.querySelector('input').addEventListener('input', (e) => { seats[i].name = e.target.value; });
     row.querySelector('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
     row.querySelectorAll('.type button').forEach((b) => b.addEventListener('click', () => { seats[i].type = b.dataset.t; S.play('click'); renderSeats(); }));
-    row.querySelectorAll('.lvl button').forEach((b) => b.addEventListener('click', () => { seats[i].level = b.dataset.l; S.play('click'); renderSeats(); }));
     row.querySelector('.rm').addEventListener('click', () => { seats.splice(i, 1); renderSeats(); });
   });
   const add = app.querySelector('#add-seat');

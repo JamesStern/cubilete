@@ -11,7 +11,7 @@ const DICT = {
   en: {
     'lang.name': 'English',
     'setup.table': 'The table', 'setup.seats': '2 – 6 seats', 'setup.addSeat': '+ Another seat',
-    'setup.target': 'First to {n} patas', 'setup.targetLabel': 'Game length', 'setup.level.casual': 'Casual', 'setup.level.sharp': 'Sharp',
+    'setup.target': 'First to {n} patas', 'setup.targetLabel': 'Game length', 'setup.level.casual': 'Casual', 'setup.level.sharp': 'Sharp', 'setup.levelLabel': 'The computers play',
     'hint.btn': 'Ask Papa', 'hint.keep': 'Papa would keep these and roll again', 'hint.keepNone': 'Papa would roll all five again', 'hint.stand': 'Papa would stand here',
     'tab.title': 'The bar tab', 'tab.open': 'Bar tab', 'tab.owes': '{name} now owes {n} rounds', 'tab.owes_1': '{name} now owes a round', 'tab.square': 'The house is square.',
     'tab.settle': 'Settle up', 'tab.clear': 'Clear the record', 'tab.confirmSettle': 'Mark every round as bought?', 'tab.confirmClear': 'Erase the whole record?',
@@ -68,7 +68,7 @@ const DICT = {
   es: {
     'lang.name': 'Español',
     'setup.table': 'La mesa', 'setup.seats': '2 – 6 sillas', 'setup.addSeat': '+ Otra silla',
-    'setup.target': 'Se juega a {n} patas', 'setup.targetLabel': 'Duración', 'setup.level.casual': 'Relajado', 'setup.level.sharp': 'Afilado',
+    'setup.target': 'Se juega a {n} patas', 'setup.targetLabel': 'Duración', 'setup.level.casual': 'Relajado', 'setup.level.sharp': 'Afilado', 'setup.levelLabel': 'Las máquinas juegan',
     'hint.btn': 'Pregúntale a Papa', 'hint.keep': 'Papa guardaría estos y tiraría otra vez', 'hint.keepNone': 'Papa tiraría los cinco otra vez', 'hint.stand': 'Papa se plantaría aquí',
     'tab.title': 'La cuenta del bar', 'tab.open': 'La cuenta', 'tab.owes': '{name} ya debe {n} rondas', 'tab.owes_1': '{name} debe una ronda', 'tab.square': 'Nadie debe nada.',
     'tab.settle': 'Saldar', 'tab.clear': 'Borrar el historial', 'tab.confirmSettle': '¿Dar todas las rondas por pagadas?', 'tab.confirmClear': '¿Borrar todo el historial?',
