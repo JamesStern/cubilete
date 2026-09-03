@@ -70,13 +70,26 @@ function afterDispatch(prev) {
   }
   if (state.phase === 'game-over' && prev.phase !== 'game-over') { S.play('fanfare'); confetti(); }
   if (state.phase === 'setup') releaseWake(); else requestWake();
+  scheduleSettle();
   scheduleAi();
+}
+
+/* After the last roll the dice stay on the table long enough to be seen, then the turn closes itself. */
+const SETTLE_MS = 2200;
+let settleTimer = null;
+function scheduleSettle() {
+  clearTimeout(settleTimer);
+  if (!G.turnComplete(state) || ui.resumePrompt) return;
+  const key = JSON.stringify(state.turn);
+  settleTimer = setTimeout(() => {
+    if (G.turnComplete(state) && JSON.stringify(state.turn) === key && !ui.busy) dispatch({ type: 'STOP' });
+  }, SETTLE_MS);
 }
 
 /* ---------- AI driver ---------- */
 function scheduleAi() {
   clearTimeout(aiTimer);
-  if (ui.busy || ui.resumePrompt || !G.isAiToAct(state)) return;
+  if (ui.busy || ui.resumePrompt || !G.isAiToAct(state) || G.turnComplete(state)) return;
   let delay = 900;
   if (state.phase === 'turn' && state.turn.rollsUsed > 0) delay = 1200;
   if (state.phase === 'draw') delay = 800;
@@ -313,14 +326,19 @@ function updateDice() {
     const canHold = ph === 'turn' && dice && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && state.turn.rollsUsed < state.turn.maxRolls && !ui.busy;
     el.disabled = !canHold;
   });
+  const complete = G.turnComplete(state);
   if (ui.pendingTumble) {
     els.forEach((el, i) => { if (ui.pendingTumble[i] && dice) { el.classList.remove('tumble'); void el.offsetWidth; el.classList.add('tumble'); } });
     ui.pendingTumble = null;
     setTimeout(() => els.forEach((el) => el.classList.remove('tumble')), 900);
+    if (complete) setTimeout(() => { if (G.turnComplete(state)) box.querySelectorAll('.die').forEach((el) => el.classList.add('held', 'final')); }, 800);
+  } else if (complete) {
+    els.forEach((el) => el.classList.add('held', 'final'));
   }
+  els.forEach((el) => { if (!complete) el.classList.remove('final'); });
   cup.classList.toggle('hidden', ph === 'round-end' || ph === 'game-over');
   const holdable = ph === 'turn' && dice && state.turn.rollsUsed >= 1 && state.turn.rollsUsed < state.turn.maxRolls;
-  felt.textContent = holdable ? (state.players[state.turn.player].type === 'human' ? t('felt.hold') : t('felt.ai')) : '';
+  felt.textContent = holdable ? (state.players[state.turn.player].type === 'human' ? t('felt.hold') : t('felt.ai')) : (complete ? t('felt.final') : '');
 }
 
 const T = t;
@@ -484,7 +502,7 @@ function onOverlay(e) {
   const a = e.currentTarget.dataset.o;
   S.play('click');
   switch (a) {
-    case 'resume': ui.resumePrompt = false; ui.overlayKey = null; render(); scheduleAi(); requestWake(); break;
+    case 'resume': ui.resumePrompt = false; ui.overlayKey = null; render(); scheduleSettle(); scheduleAi(); requestWake(); break;
     case 'abandon':
       if (ui.resumePrompt || confirm(t('confirm.abandon'))) { ui.resumePrompt = false; ui.settingsOpen = false; ui.overlayKey = null; dispatch({ type: 'NEW_GAME' }); render(); }
       break;
@@ -568,4 +586,4 @@ document.addEventListener('touchstart', S.unlock, { passive: true });
 
 /* ---------- go ---------- */
 render();
-if (!ui.resumePrompt) { scheduleAi(); if (state.phase !== 'setup') requestWake(); }
+if (!ui.resumePrompt) { scheduleSettle(); scheduleAi(); if (state.phase !== 'setup') requestWake(); }

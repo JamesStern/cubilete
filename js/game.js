@@ -210,7 +210,6 @@ export function reduce(prev, action, rollDie) {
           endRound(s, t.player, t.hand);
           return s;
         }
-        if (t.rollsUsed >= t.maxRolls) finishTurn(s);
         return s;
       }
       if (s.phase === 'desempate') {
@@ -297,6 +296,11 @@ export function currentActor(s) {
     case 'desempate': return s.desempate.contenders[s.desempate.ptr];
     default: return null;
   }
+}
+
+/** True when the current turn has used every roll and only needs to be closed with STOP. */
+export function turnComplete(s) {
+  return s.phase === 'turn' && s.turn.dice !== null && s.turn.rollsUsed >= s.turn.maxRolls;
 }
 
 export function isAiToAct(s) {

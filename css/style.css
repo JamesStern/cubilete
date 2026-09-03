@@ -363,3 +363,4 @@ input { font: inherit; }
 .seg { display: flex; border: 1px solid rgba(245,184,46,.5); border-radius: 8px; overflow: hidden; }
 .seg button { background: none; border: 0; padding: 8px 10px; font-size: 12px; letter-spacing: .06em; font-family: var(--serif-head); text-transform: uppercase; color: var(--bone); }
 .seg button.on { background: var(--cohiba); color: #1a0e06; }
+.die.held.final { box-shadow: 0 0 0 2px var(--cohiba), 0 0 16px 2px var(--glow), 0 4px 8px rgba(0,0,0,.6); }

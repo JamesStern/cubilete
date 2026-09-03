@@ -81,7 +81,7 @@ test('every log key produced by game.js exists in the dictionary', () => {
   const roll = makeRoller([]);
   let s = drawTo(setup4(roll), roll, 0);
   let steps = 0;
-  while (s.phase !== 'round-end' && steps++ < 60) s = go(s, { type: 'ROLL' }, roll);
+  while (s.phase !== 'round-end' && steps++ < 60) s = rollAndSettle(s, roll);
   for (const e of s.log) ok(typeof e === 'object' && logLine(e) !== e.k, 'untranslated ' + JSON.stringify(e));
 });
 
@@ -105,6 +105,12 @@ function go(s, action, roll) {
   n = G.reduce(n, action, roll);
   while (n.phase === 'handoff') n = G.reduce(n, { type: 'CONTINUE' }, roll);
   return n;
+}
+/** ROLL, then close the turn with STOP if it used its last roll (what the UI does after the dice settle). */
+function rollAndSettle(s, roll) {
+  s = go(s, { type: 'ROLL' }, roll);
+  if (G.turnComplete(s)) s = go(s, { type: 'STOP' }, roll);
+  return s;
 }
 function setup4(roll) {
   let s = G.initialState();
@@ -147,7 +153,7 @@ test('draw: tie re-draws among tied only, winner opens', () => {
   eq(s.phase, 'turn'); eq(s.turn.player, 2); eq(s.round.openerIdx, 2); deepEq(s.round.order, [2, 3, 0, 1]);
   eq(s.turn.maxRolls, 3);
 });
-test('opener stopping after 1 roll caps everyone at 1 and their ROLL auto-finishes', () => {
+test('opener stopping after 1 roll caps everyone at 1; their single ROLL completes the turn, STOP closes it', () => {
   const roll = makeRoller([]);
   let s = drawTo(setup4(roll), roll, 0);
   roll.push(KING, QUEEN, JACK, GALLEGO, NEGRO);
@@ -157,7 +163,11 @@ test('opener stopping after 1 roll caps everyone at 1 and their ROLL auto-finish
   eq(s.round.rollCap, 1); eq(s.turn.player, 1); eq(s.turn.maxRolls, 1);
   roll.push(NEGRO, NEGRO, QUEEN, JACK, GALLEGO);
   s = go(s, { type: 'ROLL' }, roll);
-  eq(s.turn.player, 2, 'auto-finished and moved on'); eq(s.turn.maxRolls, 1);
+  eq(s.phase, 'turn'); eq(s.turn.player, 1, 'still on the table so the dice can be seen'); ok(G.turnComplete(s));
+  eq(G.reduce(s, { type: 'ROLL' }, roll), s, 'no more rolls');
+  eq(G.reduce(s, { type: 'TOGGLE_HOLD', i: 0 }, roll), s, 'no holding after the last roll');
+  s = go(s, { type: 'STOP' }, roll);
+  eq(s.turn.player, 2); eq(s.turn.maxRolls, 1);
   ok(s.round.results[1], 'result recorded');
 });
 test('opener using all 3 rolls: cap 3, holds respected', () => {
@@ -173,7 +183,7 @@ test('opener using all 3 rolls: cap 3, holds respected', () => {
   eq(s.turn.hand.count, 3);
   s = go(s, { type: 'TOGGLE_HOLD', i: 2 }, roll);
   roll.push(QUEEN, QUEEN);
-  s = go(s, { type: 'ROLL' }, roll);
+  s = rollAndSettle(s, roll);
   eq(s.round.rollCap, 3); eq(s.turn.player, 1); eq(s.turn.maxRolls, 3);
   deepEq(s.round.results[0].dice, [KING, KING, KING, QUEEN, QUEEN]);
 });
@@ -204,9 +214,9 @@ test('desempate: tied best hands re-roll; three-way then two-way', () => {
   let s = drawTo(setup4(roll), roll, 0);
   // everyone: pair of kings, one roll each
   roll.push(KING, KING, QUEEN, JACK, NEGRO); s = go(s, { type: 'ROLL' }, roll); s = go(s, { type: 'STOP' }, roll);
-  roll.push(KING, KING, JACK, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
-  roll.push(KING, KING, QUEEN, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
-  roll.push(QUEEN, QUEEN, JACK, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
+  roll.push(KING, KING, JACK, GALLEGO, NEGRO); s = rollAndSettle(s, roll);
+  roll.push(KING, KING, QUEEN, GALLEGO, NEGRO); s = rollAndSettle(s, roll);
+  roll.push(QUEEN, QUEEN, JACK, GALLEGO, NEGRO); s = rollAndSettle(s, roll);
   eq(s.phase, 'desempate'); deepEq(s.desempate.contenders, [0, 1, 2]);
   roll.push(QUEEN, QUEEN, QUEEN, JACK, NEGRO); s = go(s, { type: 'ROLL' }, roll);
   roll.push(QUEEN, QUEEN, QUEEN, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
@@ -234,7 +244,7 @@ test('illegal actions are no-ops returning the same object', () => {
   eq(G.reduce(s, { type: 'STOP' }, roll), s, 'stop before roll');
   roll.push(KING, QUEEN, JACK, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
   roll.push(1, 2, 3, 4, 5); s = go(s, { type: 'ROLL' }, roll);
-  roll.push(1, 2, 3, 4, 5); s = go(s, { type: 'ROLL' }, roll);
+  roll.push(1, 2, 3, 4, 5); s = rollAndSettle(s, roll);
   eq(s.turn.player, 1);
   eq(G.reduce(s, { type: 'CONTINUE' }, roll), s, 'continue during turn');
 });
@@ -243,7 +253,7 @@ test('state survives JSON round trip through a whole scripted round', () => {
   let s = drawTo(setup4(roll), roll, 0);
   let steps = 0;
   while (s.phase !== 'round-end' && steps++ < 60) {
-    s = go(s, { type: 'ROLL' }, roll);
+    s = rollAndSettle(s, roll);
     deepEq(JSON.parse(JSON.stringify(s)), s);
   }
   eq(s.phase, 'round-end');
@@ -259,6 +269,7 @@ test('handoff fires only when the next human differs from the phone holder', () 
   s = G.reduce(s, { type: 'CONTINUE' }, roll);
   eq(s.phase, 'turn'); eq(s.phoneHolder, 1);
   roll.push(1, 2, 3, 4, 5); s = G.reduce(s, { type: 'ROLL' }, roll);
+  s = G.reduce(s, { type: 'STOP' }, roll);
   eq(s.phase, 'turn'); eq(s.turn.player, 2, 'AI seat needs no handoff');
 });
 test('aiInputs reflects table state', () => {
