@@ -1,7 +1,7 @@
 // Renderer, input, AI driver, persistence and PWA glue for Cubilete.
 import * as G from './game.js';
 import * as R from './rules.js';
-import { decide } from './ai.js';
+import { decide, seededRand } from './ai.js';
 import { faceSVG, miniHand, cupSVG } from './dice.js';
 import * as S from './sound.js';
 import { APP_VERSION } from './version.js';
@@ -155,7 +155,9 @@ function aiStep() {
       const t = state.turn;
       if (t.rollsUsed === 0) { doRoll(); return; }
       const p = state.players[t.player];
-      const d = decide(G.aiInputs(state), { style: (PERSONAS[p.persona] || PERSONAS.house).style, level: p.level || 'sharp' }, Math.random);
+      // seeded from the turn so re-asking after a hold gives the same answer (and a reload replays it)
+      const seed = `${state.gameId}|${state.round.number}|${t.player}|${t.rollsUsed}|${t.dice.join('')}`;
+      const d = decide(G.aiInputs(state), { style: (PERSONAS[p.persona] || PERSONAS.house).style, level: p.level || 'sharp' }, seededRand(seed));
       if (d.stop) { dispatch({ type: 'STOP' }); return; }
       if (d.hold.some((h, i) => h !== t.held[i])) { S.play('hold'); dispatch({ type: 'SET_HOLD', held: d.hold }); return; }
       doRoll();

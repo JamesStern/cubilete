@@ -172,11 +172,14 @@ export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable,
   let pick = options[0];
   for (const o of options) if (o.value > pick.value + 1e-9) pick = o;
   if (level === 'casual') {
-    // anything within 70% of the best play, and never fewer than the two best options
-    const sorted = options.slice().sort((a, b) => b.value - a.value);
-    let pool = sorted.filter((o) => o.value >= sorted[0].value * 0.7);
-    if (pool.length < 2) pool = sorted.slice(0, 2);
-    pick = pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))];
+    // any play worth at least 75% of the best one, weighted towards the better ones.
+    // `rand` must be deterministic for a given turn state (the driver re-asks after every hold).
+    const pool = options.filter((o) => o.value >= pick.value * 0.75 && o.value > 0);
+    if (pool.length > 1) {
+      const weights = pool.map((o) => (o.value / pick.value) ** 3);
+      let r = rand() * weights.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { pick = pool[i]; break; } }
+    }
   }
   if (pick.sub < 0) return { hold: held.slice(), stop: true };
 
@@ -188,6 +191,20 @@ export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable,
     if (need[f] > 0) { hold[i] = true; need[f]--; }
   }
   return { hold, stop: false };
+}
+
+/** A small deterministic RNG seeded from a string — for casual play that must not change its mind. */
+export function seededRand(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /** Expected patas of stopping vs rolling — exposed for tests/debug. */

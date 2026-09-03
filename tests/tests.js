@@ -386,18 +386,29 @@ test('sharp decisions are deterministic and unchanged by rand', () => {
   deepEq(AI.decide(inp, { level: 'sharp' }, seeded(1)), AI.decide(inp, { level: 'sharp' }, seeded(99)));
   deepEq(AI.decide(inp), AI.decide(inp, { style: 'cool', level: 'sharp' }));
 });
-test('casual play is legal and sometimes differs from sharp', () => {
-  const inp = { dice: R.parseDice('K K Q J 9'), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: 2, rollCap: null };
-  const sharp = JSON.stringify(AI.decide(inp));
-  let differs = 0;
-  const rand = seeded(42);
-  for (let i = 0; i < 200; i++) {
-    const d = AI.decide(inp, { level: 'casual' }, rand);
-    ok(d.hold.length === 5 && d.hold.every((h, j) => !h || inp.dice[j] !== undefined), 'legal hold');
-    if (JSON.stringify(d) !== sharp) differs++;
+test('casual is deterministic for a seed and never picks a poor play', () => {
+  const inp = { dice: R.parseDice('A K K 10 9'), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: 2, rollCap: null };
+  deepEq(AI.decide(inp, { level: 'casual' }, AI.seededRand('x')), AI.decide(inp, { level: 'casual' }, AI.seededRand('x')));
+  for (let i = 0; i < 100; i++) {
+    const d = AI.decide(inp, { level: 'casual' }, AI.seededRand('s' + i));
+    ok(d.stop || (d.hold[0] && d.hold[1] && d.hold[2]), 'casual dropped the As or a Rey: ' + JSON.stringify(d));
+    ok(!d.hold[4] || d.hold[0], 'kept the Negro over the As');
+  }
+});
+test('casual play is legal and sometimes differs from sharp on close calls', () => {
+  let differs = 0, total = 0;
+  for (const hand of ['K K 9 9 J', 'K K Q J 9', 'K Q J 10 9', 'Q Q J J 9', 'K K K 9 9']) {
+    const inp = { dice: R.parseDice(hand), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: 2, rollCap: null };
+    const sharp = JSON.stringify(AI.decide(inp));
+    for (let i = 0; i < 60; i++) {
+      const d = AI.decide(inp, { level: 'casual' }, AI.seededRand(hand + i));
+      ok(d.hold.length === 5, 'legal hold');
+      total++;
+      if (JSON.stringify(d) !== sharp) differs++;
+    }
   }
   ok(differs > 0, 'casual never varied');
-  ok(differs < 200, 'casual never agreed with sharp');
+  ok(differs < total / 2, 'casual disagrees with sharp too often: ' + differs + '/' + total);
 });
 test('gambler never stands on four of a kind with a roll left; cautious stands where cool rolls', () => {
   const four = { dice: R.parseDice('K K K K 9'), held: NOHOLD, rollsUsed: 2, maxRolls: 3, isOpener: false, bestOnTable: H('Q Q 9 J 10'), opponentsAfter: 0, rollCap: 3 };
