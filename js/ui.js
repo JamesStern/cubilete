@@ -8,7 +8,7 @@ import { APP_VERSION } from './version.js';
 import { t, handLabel, logLine, quips, setLang, getLang, LANGS } from './i18n.js';
 
 const KEY = 'cubilete.state';
-const SEATS_KEY = 'cubilete.seats';
+const SEATS_KEY = 'cubilete.seats.v2'; // key bumped so the new default names replace previously saved seats once
 const app = document.getElementById('app');
 const overlayEl = document.createElement('div');
 document.body.appendChild(overlayEl);
@@ -151,7 +151,7 @@ function loadSeats() {
   if (seats) return seats;
   try { const raw = localStorage.getItem(SEATS_KEY); if (raw) seats = JSON.parse(raw); } catch (_) { /* ignore */ }
   if (!seats && state.lastPlayers) seats = state.lastPlayers;
-  if (!Array.isArray(seats) || seats.length < 2) seats = [{ name: 'Hudson', type: 'human' }, { name: 'Papa', type: 'ai' }];
+  if (!Array.isArray(seats) || seats.length < 2) seats = [{ name: G.DEFAULT_NAMES[0], type: 'human' }, { name: G.DEFAULT_NAMES[1], type: 'ai' }];
   return seats;
 }
 function saveSeats() { try { localStorage.setItem(SEATS_KEY, JSON.stringify(seats)); } catch (_) { /* ignore */ } }

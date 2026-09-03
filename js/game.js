@@ -2,7 +2,7 @@
 // rollDie() must return an int 1..6 (face constants from rules.js). No DOM, no storage.
 import { evaluate, compare, scoreFor, bestOf } from './rules.js';
 
-export const DEFAULT_NAMES = ['Hudson', 'Papa', 'Bobby', 'Roberto', 'Honest Lil', 'Constante'];
+export const DEFAULT_NAMES = ['Hudson', 'Ignacio', 'Papa', 'Honest Lil', 'Pedrico', 'Constante'];
 export const MAX_ROLLS = 3;
 export const MAX_LOG = 40;
 
