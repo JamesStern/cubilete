@@ -450,7 +450,7 @@ function renderOverlay() {
       <div class="row"><span>${t('settings.rules')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="rules">${t('settings.view')}</button></div>
       ${ph !== 'setup' ? `<div class="row"><span>${t('settings.abandon')}<small>${t('settings.abandonSub')}</small></span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="abandon">${t('settings.quit')}</button></div>` : ''}
       <div class="actions"><button class="btn" data-o="close">${t('btn.close')}</button></div>
-      <div class="version">Cubilete ${APP_VERSION}</div></div>`;
+      <div class="version">Cubilete ${APP_VERSION} · ${window.innerWidth}×${window.innerHeight} / screen ${screen.width}×${screen.height} · inset ${getComputedStyle(document.documentElement).getPropertyValue('--sa-bottom').trim() || '0'} · ${standalone ? 'standalone' : 'browser'}</div></div>`;
   } else if (ui.rulesOpen) {
     key = 'rules';
     html = `<div class="card rules"><div class="checker"></div><h2 style="text-align:center">${t('rules.title')}</h2>

@@ -37,12 +37,7 @@ input { font: inherit; }
 /* ---------- scene backdrop ---------- */
 .scene { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
 /* whatever the viewport does, the ground behind everything is the bar top, not a flat strip */
-html { background: var(--mahogany-deep); }
-body {
-  background:
-    repeating-linear-gradient(94deg, rgba(0,0,0,0.08) 0 3px, rgba(255,255,255,0.025) 3px 9px, rgba(0,0,0,0.05) 9px 14px),
-    linear-gradient(180deg, var(--mahogany) 0%, var(--mahogany-deep) 100%);
-}
+html, body { background: var(--mahogany-deep); }
 .scene .sky {
   position: absolute; left: 0; right: 0; top: 0; height: 36%;
   background: linear-gradient(180deg, #2b1a4a 0%, #6b2c57 28%, #d8623a 58%, #f4a54a 82%, #f7c76e 100%);
@@ -72,6 +67,8 @@ body {
     repeating-linear-gradient(94deg, rgba(0,0,0,0.08) 0 3px, rgba(255,255,255,0.025) 3px 9px, rgba(0,0,0,0.05) 9px 14px),
     linear-gradient(180deg, #5a2f1c 0%, #47231a 25%, var(--mahogany) 60%, var(--mahogany-deep) 100%);
   box-shadow: 0 -8px 30px rgba(0,0,0,.5);
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 160px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 160px), transparent 100%);
 }
 .scene .bar::before {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 10px;
@@ -80,6 +77,8 @@ body {
 .scene .vignette {
   position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 160px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 160px), transparent 100%);
 }
 .scene .smoke {
   position: absolute; left: 20%; bottom: 8%; width: 60%; height: 50%; opacity: .0;
@@ -243,7 +242,7 @@ body {
 
 .ticker {
   padding: 4px 14px calc(8px + var(--sa-bottom)); font-size: 12px; color: var(--bone); font-style: italic;
-  background: linear-gradient(0deg, rgba(0,0,0,.7) 0, rgba(0,0,0,.45) 45%, rgba(0,0,0,0) 100%); min-height: 28px; text-align: center;
+  background: radial-gradient(ellipse 70% 100% at 50% 30%, rgba(0,0,0,.5), rgba(0,0,0,0) 70%); min-height: 28px; text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -318,7 +317,7 @@ body {
 .seatrow .rm { background: none; border: 0; color: var(--bone); opacity: .6; font-size: 20px; width: 28px; }
 .setup .addrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
 .setup .addrow button { background: none; border: 1px dashed rgba(245,184,46,.6); color: var(--cohiba); border-radius: 8px; padding: 8px 12px; font-family: var(--serif-head); letter-spacing: .08em; font-size: 12px; text-transform: uppercase; }
-.setup .foot { padding: 8px 14px calc(12px + var(--sa-bottom)); display: flex; flex-direction: column; gap: 8px; align-items: center; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,0)); }
+.setup .foot { padding: 8px 14px calc(12px + var(--sa-bottom)); display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .setup .foot .btn { width: 100%; max-width: 440px; }
 .setup .links { display: flex; gap: 16px; font-size: 13px; }
 .setup .links button { background: none; border: 0; color: var(--bone); text-decoration: underline; text-underline-offset: 3px; opacity: .85; }

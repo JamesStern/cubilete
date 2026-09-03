@@ -1,4 +1,4 @@
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE = `cubilete-${VERSION}`;
 // On localhost go network-first so edits show up immediately; production is cache-first.
 const DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
