@@ -49,7 +49,7 @@ const TARGET_KEY = 'cubilete.target';
 let state = load();
 const ui = {
   resumePrompt: !!(state && state.phase !== 'setup'),
-  settingsOpen: false, rulesOpen: false, logOpen: false, ledgerOpen: false, overlayKey: null, hint: null,
+  settingsOpen: false, rulesOpen: false, logOpen: false, ledgerOpen: false, meetOpen: false, overlayKey: null, hint: null,
   busy: false, pendingTumble: null, screen: '', diceMode: '',
 };
 if (!state) state = G.initialState();
@@ -243,12 +243,12 @@ function renderSetup() {
         <div id="seats"></div>
         <div class="addrow"><button id="add-seat">${t('setup.addSeat')}</button></div>
         <div class="targetrow"><span id="target-label">${t('setup.target', { n: target })}</span><div class="seg" id="target-seg">${[5, 10, 15].map((n) => `<button data-n="${n}" class="${target === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
-        <div class="targetrow"><span>${t('setup.levelLabel')}</span><div class="seg" id="level-seg"><button data-l="casual" class="${level === 'casual' ? 'on' : ''}">${t('setup.level.casual')}</button><button data-l="sharp" class="${level === 'sharp' ? 'on' : ''}">${t('setup.level.sharp')}</button></div></div>
+        <div class="targetrow"><span style="white-space:nowrap">${t('setup.levelLabel')} <button class="infobtn" id="open-meet" aria-label="info">i</button></span><div class="seg" id="level-seg"><button data-l="casual" class="${level === 'casual' ? 'on' : ''}">${t('setup.level.casual')}</button><button data-l="sharp" class="${level === 'sharp' ? 'on' : ''}">${t('setup.level.sharp')}</button></div></div>
       </div>
     </div>
     <div class="foot">
       <button class="btn" id="start">${t('setup.start')}<small>${t('setup.startSub')}</small></button>
-      <div class="links"><button id="open-rules">${t('setup.rules')}</button><button id="open-ledger">${t('tab.open')}</button><button id="open-settings">${t('setup.settings')}</button></div>
+      <div class="links"><button id="open-rules">${t('setup.rules')}</button><button id="open-meet2">${t('meet.btn')}</button><button id="open-ledger">${t('tab.open')}</button><button id="open-settings">${t('setup.settings')}</button></div>
       ${isIphone && !standalone ? `<div class="a2hs">${t('setup.a2hs')}</div>` : ''}
     </div>
   </div>`;
@@ -268,6 +268,7 @@ function renderSetup() {
     app.querySelectorAll('#level-seg button').forEach((x) => x.classList.toggle('on', x.dataset.l === level));
   });
   app.querySelector('#open-ledger').addEventListener('click', () => { S.play('click'); openLedger(); });
+  for (const id of ['#open-meet', '#open-meet2']) app.querySelector(id).addEventListener('click', () => { S.play('click'); ui.meetOpen = true; ui.overlayKey = null; renderOverlay(); });
   app.querySelector('#lang-toggle').addEventListener('click', () => { S.play('click'); switchLang(LANGS.find((l) => l !== getLang())); });
   app.querySelector('#start').addEventListener('click', () => {
     saveSeats();
@@ -543,6 +544,7 @@ function renderOverlay() {
       <div class="row"><span>${t('settings.update')}<small>${standalone ? t('settings.installed') : t('settings.browser')}</small></span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="update">${t('settings.check')}</button></div>
       <div class="row"><span>${t('settings.rules')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="rules">${t('settings.view')}</button></div>
       <div class="row"><span>${t('tab.title')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="ledger">${t('settings.view')}</button></div>
+      <div class="row"><span>${t('meet.btn')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="meet">${t('settings.view')}</button></div>
       ${ph !== 'setup' ? `<div class="row"><span>${t('settings.abandon')}<small>${t('settings.abandonSub')}</small></span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="abandon">${t('settings.quit')}</button></div>` : ''}
       <div class="actions"><button class="btn" data-o="close">${t('btn.close')}</button></div>
       <div class="version">Cubilete ${APP_VERSION} · ${window.innerWidth}×${window.innerHeight} / screen ${screen.width}×${screen.height} · inset ${getComputedStyle(document.documentElement).getPropertyValue('--sa-bottom').trim() || '0'} · ${standalone ? 'standalone' : 'browser'}</div></div>`;
@@ -558,6 +560,16 @@ function renderOverlay() {
       </div>`).join('')}</div>
       <h3>${t('tab.recent')}</h3><div class="recent">${ledger.games.slice(0, 10).map((g) => `<div class="row"><span class="d">${fmtDate(g.date)}</span><span>${esc(t('tab.gameLine', { winner: g.winner, target: g.target, buyer: g.buyer }))}</span></div>`).join('')}</div>` : `<div class="empty">${t('tab.empty')}</div>`}
       <div class="actions">${rows.length ? `<button class="btn ghost" data-o="settle">${t('tab.settle')}</button><button class="btn ghost" data-o="clearledger">${t('tab.clear')}</button>` : ''}<button class="btn" data-o="close">${t('btn.close')}</button></div></div>`;
+  } else if (ui.meetOpen) {
+    key = 'meet';
+    const regulars = [
+      { name: 'Ignacio', k: 'ignacio' }, { name: 'Papa', k: 'papa' }, { name: 'Honest Lil', k: 'lil' }, { name: 'Pedrico', k: 'pedrico' },
+    ];
+    html = `<div class="card meet"><div class="checker"></div><h2 style="text-align:center">${t('meet.title')}</h2>
+      ${regulars.map((r) => `<div class="persona"><div class="top"><span class="nm">${r.name}</span><span class="style">${t('meet.style.' + PERSONAS[r.k].style)}</span></div><p>${t('meet.' + r.k)}</p></div>`).join('')}
+      <p class="house">${t('meet.house')}</p>
+      <h3>${t('meet.levelTitle')}</h3><p>${t('meet.levelText')}</p>
+      <div class="actions"><button class="btn" data-o="close">${t('btn.close')}</button></div></div>`;
   } else if (ui.rulesOpen) {
     key = 'rules';
     html = `<div class="card rules"><div class="checker"></div><h2 style="text-align:center">${t('rules.title')}</h2>
@@ -627,7 +639,8 @@ function onOverlay(e) {
     case 'abandon':
       if (ui.resumePrompt || confirm(t('confirm.abandon'))) { ui.resumePrompt = false; ui.settingsOpen = false; ui.overlayKey = null; dispatch({ type: 'NEW_GAME' }); render(); }
       break;
-    case 'close': ui.settingsOpen = false; ui.rulesOpen = false; ui.logOpen = false; ui.ledgerOpen = false; ui.overlayKey = null; renderOverlay(); break;
+    case 'close': ui.settingsOpen = false; ui.rulesOpen = false; ui.logOpen = false; ui.ledgerOpen = false; ui.meetOpen = false; ui.overlayKey = null; renderOverlay(); break;
+    case 'meet': ui.settingsOpen = false; ui.meetOpen = true; ui.overlayKey = null; renderOverlay(); break;
     case 'ledger': openLedger(); break;
     case 'settle': if (confirm(t('tab.confirmSettle'))) { ledger = settleUp(ledger); saveLedger(); ui.overlayKey = null; renderOverlay(); } break;
     case 'clearledger': if (confirm(t('tab.confirmClear'))) { ledger = emptyLedger(); saveLedger(); ui.overlayKey = null; renderOverlay(); } break;
