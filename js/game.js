@@ -111,13 +111,16 @@ function resolve(s) {
     endRound(s, tied[0], r.results[tied[0]].hand);
   } else {
     log(s, 'log.tie', { names: tied.map((i) => name(s, i)) });
-    startDesempate(s, tied);
+    startDesempate(s, tied, r.results, 1);
   }
 }
 
-function startDesempate(s, contenders) {
+function startDesempate(s, contenders, source, tieNo) {
   s.turn = null;
-  s.desempate = { contenders, ptr: 0, results: {} };
+  // `previous` keeps the hands that tied so the table can show them during the roll-off
+  const previous = {};
+  for (const i of contenders) if (source[i]) previous[i] = { dice: source[i].dice, hand: source[i].hand };
+  s.desempate = { contenders, ptr: 0, results: {}, previous, tieNo };
   gate(s, contenders[0], 'desempate');
 }
 
@@ -279,7 +282,7 @@ export function reduce(prev, action, rollDie) {
           endRound(s, tied[0], d.results[tied[0]].hand);
         } else {
           log(s, 'log.tieAgain');
-          startDesempate(s, tied);
+          startDesempate(s, tied, d.results, (d.tieNo || 1) + 1);
         }
         return s;
       }

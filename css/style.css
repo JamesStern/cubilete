@@ -458,3 +458,12 @@ body[data-screen="setup"] .scene .sun { top: calc(var(--sa-top) + 78px); }
 body[data-screen="setup"] .scene .sea { top: calc(var(--sa-top) + 148px); height: auto; bottom: 50%; }
 body[data-screen="setup"] .scene .palms { top: calc(var(--sa-top) + 20px); height: 150px; }
 body[data-screen="setup"] .scene .bar { top: 50%; }
+
+/* roll-off tally */
+.tally { margin: 6px 12px 0; background: rgba(10,5,2,.55); border: 1px solid rgba(245,184,46,.45); border-radius: 12px; padding: 6px 10px 6px; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--bone); }
+.tally .ttl { font-family: var(--serif-head); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--cohiba); margin-bottom: 2px; }
+.tally .row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 8px; background: rgba(0,0,0,.3); }
+.tally .row .who { font-family: var(--serif-head); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; min-width: 64px; }
+.tally .row .lbl { margin-left: auto; font-style: italic; }
+.tally .row.best { border: 1px solid rgba(245,184,46,.6); }
+.tally .row.pending { opacity: .6; }

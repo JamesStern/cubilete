@@ -84,7 +84,7 @@ function tutCheck() {
 let state = load();
 const ui = {
   resumePrompt: !!(state && state.phase !== 'setup'),
-  settingsOpen: false, rulesOpen: false, logOpen: false, ledgerOpen: false, meetOpen: false, overlayKey: null, hint: null,
+  settingsOpen: false, rulesOpen: false, logOpen: false, ledgerOpen: false, meetOpen: false, overlayKey: null, hint: null, tieSeen: '',
   busy: false, pendingTumble: null, screen: '', diceMode: '',
 };
 if (!state) state = G.initialState();
@@ -137,11 +137,21 @@ function scheduleSettle() {
   }, SETTLE_MS);
 }
 
+/* ---------- the tie prompt: a pause before every roll-off so the table can see who tied with what ---------- */
+function tieKey() {
+  const d = state.desempate;
+  if (!d || d.ptr > 0 || Object.keys(d.results).length) return '';
+  if (!(state.phase === 'desempate' || (state.phase === 'handoff' && state.handoff.resume === 'desempate'))) return '';
+  return `${state.round.number}:${d.tieNo || 1}:${d.contenders.join(',')}`;
+}
+function tiePending() { const k = tieKey(); return !!k && ui.tieSeen !== k; }
+
 /* ---------- AI driver ---------- */
 function scheduleAi() {
   clearTimeout(aiTimer);
-  if (ui.busy || ui.resumePrompt || !G.isAiToAct(state) || G.turnComplete(state)) return;
+  if (ui.busy || ui.resumePrompt || tiePending() || !G.isAiToAct(state) || G.turnComplete(state)) return;
   let delay = 900;
+  if (state.phase === 'desempate') delay = 1600;
   if (state.phase === 'turn' && state.turn.rollsUsed > 0) delay = 1200;
   if (state.phase === 'draw') delay = 800;
   aiTimer = setTimeout(aiStep, delay);
@@ -391,8 +401,25 @@ function renderCoach() {
   box.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => { S.play('click'); if (b.dataset.c === 'skip' || b.dataset.c === 'finish') finishTutorial(); else tutNext(); }));
 }
 
+function renderTieTally() {
+  const box = app.querySelector('#onTable');
+  const d = state.desempate;
+  const inTie = d && (state.phase === 'desempate' || (state.phase === 'handoff' && state.handoff.resume === 'desempate'));
+  if (!inTie) { if (box.dataset.tally) { box.innerHTML = ''; box.dataset.tally = ''; } return; }
+  const key = JSON.stringify([d.contenders, d.results, d.tieNo, getLang()]);
+  if (box.dataset.tally === key) return;
+  box.dataset.tally = key; box.dataset.key = '';
+  const rows = d.contenders.map((i) => {
+    const res = d.results[i];
+    const best = res && Object.keys(d.results).length > 1 && d.contenders.every((j) => !d.results[j] || R.compare(res.hand, d.results[j].hand) >= 0);
+    return `<div class="row ${best ? 'best' : ''} ${res ? '' : 'pending'}"><span class="who">${pname(i)}</span>${res ? miniHand(res.dice) : ''}<span class="lbl">${res ? esc(handLabel(res.hand)) : t('tie.waiting') + '…'}</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="tally"><div class="ttl">${t('tie.section')}${(d.tieNo || 1) > 1 ? ' · ' + t('tie.round', { n: d.tieNo }) : ''}</div>${rows}</div>`;
+}
+
 function updateTable() {
   renderCoach();
+  renderTieTally();
   const r = state.round;
   app.querySelector('#roundlbl').innerHTML = r ? t('top.round', { n: r.number }) : t('top.opening');
   updateScores();
@@ -515,6 +542,13 @@ function updateMessage() {
     const d = state.desempate;
     who = pname(actor); what = T('msg.desempate'); sub = T('msg.desempateSub', { names: d.contenders.map((i) => pname(i)).join(' · ') });
     if (G.turnComplete(state)) what = handLabel(d.results[actor].hand);
+    else {
+      const rolled = d.contenders.filter((i) => d.results[i]);
+      if (rolled.length) {
+        const bestIdx = rolled.reduce((a, b) => (R.compare(d.results[b].hand, d.results[a].hand) > 0 ? b : a));
+        sub = T('msg.toBeat', { hand: handLabel(d.results[bestIdx].hand), name: pname(bestIdx) });
+      }
+    }
   } else if (ph === 'handoff') { who = pname(state.handoff.to); what = T('msg.handoff'); }
   else if (ph === 'round-end' || ph === 'game-over') {
     const r = state.round;
@@ -567,6 +601,7 @@ function onControl(e) {
     case 'roll': doRoll(); break;
     case 'stop': dispatch({ type: 'STOP' }); break;
     case 'continue': dispatch({ type: 'CONTINUE' }); break;
+    case 'tie': ui.tieSeen = tieKey(); ui.overlayKey = null; render(); scheduleAi(); break;
     case 'rematch': dispatch({ type: 'REMATCH' }); break;
     case 'new': dispatch({ type: 'NEW_GAME' }); break;
     default: break;
@@ -594,6 +629,18 @@ function renderOverlay() {
   const ph = state.phase;
   if (ui.overlayDelay && ph === 'round-end') { /* dice first, card in a moment */ }
   else if (ui.resumePrompt && state.tutorial) { ui.resumePrompt = false; }
+  else if (tiePending() && !tutActive()) {
+    const d = state.desempate;
+    key = 'tie' + tieKey();
+    const names = d.contenders.map((i) => pname(i));
+    const joined = names.length > 2 ? names.slice(0, -1).join(', ') + (getLang() === 'es' ? ' y ' : ' & ') + names[names.length - 1] : names.join(getLang() === 'es' ? ' y ' : ' & ');
+    const first = d.previous[d.contenders[0]];
+    const again = (d.tieNo || 1) > 1;
+    const text = again ? t('tie.textAgain', { names: joined }) : t(names.length > 2 ? 'tie.textMany' : 'tie.text', { names: joined, hand: first ? handLabel(first.hand) : '' });
+    const rows = d.contenders.map((i) => { const p = d.previous[i]; return p ? `<div class="row"><span class="who">${pname(i)}</span>${miniHand(p.dice)}<span class="lbl">${esc(handLabel(p.hand))}</span></div>` : ''; }).join('');
+    html = `<div class="card"><div class="checker"></div><h1>${again ? t('tie.again') : t('tie.title')}</h1><p>${text}</p><div class="summary">${rows}</div>
+      <div class="actions"><button class="btn" data-o="tie">${t('tie.btn')}</button></div></div>`;
+  }
   else if (ui.resumePrompt) {
     key = 'resume';
     html = `<div class="card"><div class="checker"></div><h2>${t('resume.title')}</h2><p>${t('resume.round', { n: state.round ? state.round.number : '—' })} · ${state.players.map((p) => `${esc(p.name)} ${p.patas}`).join(' · ')}</p>
@@ -669,8 +716,8 @@ function renderOverlay() {
       <div class="hand-big">${winnerDice.map((v) => `<div class="die ${carab ? 'carabina' : 'win'}">${faceSVG(v)}</div>`).join('')}</div>
       <div class="big">${pname(r.winner)}</div>
       <p>${carab ? '' : esc(handLabel(h)) + ' — '}<b>${t('msg.patas', { n: r.patasAwarded })}</b> · ${t('roundEnd.has', { n: state.players[r.winner].patas })}</p>
-      ${r.desempate ? `<p class="quip">${t('roundEnd.tiebreak')}</p>` : ''}
       <div class="summary">${rows}</div>
+      ${r.desempate ? `<h2 style="margin-top:12px;font-size:12px">${t('tie.section')}${(r.desempate.tieNo || 1) > 1 ? ' · ' + t('tie.round', { n: r.desempate.tieNo }) : ''}</h2><div class="summary">${r.desempate.contenders.map((i) => { const res = r.desempate.results[i]; return `<div class="row ${i === r.winner ? 'win' : ''}"><span class="who">${pname(i)}</span>${miniHand(res.dice)}<span class="lbl">${esc(handLabel(res.hand))}</span></div>`; }).join('')}</div>` : ''}
       <p class="quip">${quip()}</p>
       <div class="actions"><button class="btn" data-o="continue">${gameOver ? t('btn.result') : t('btn.next')}<small>${gameOver ? '' : t('btn.opens', { name: pname(r.winner) })}</small></button></div></div>`;
   } else if (ph === 'game-over') {
@@ -712,6 +759,7 @@ function onOverlay(e) {
     case 'update': checkForUpdate(); break;
     case 'lang': { const l = e.currentTarget.dataset.l; if (l !== getLang()) { ui.settingsOpen = true; switchLang(l); } break; }
     case 'continue': dispatch({ type: 'CONTINUE' }); break;
+    case 'tie': ui.tieSeen = tieKey(); ui.overlayKey = null; render(); scheduleAi(); break;
     case 'rematch': dispatch({ type: 'REMATCH' }); break;
     case 'new': dispatch({ type: 'NEW_GAME' }); break;
     default: break;
