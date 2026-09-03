@@ -78,7 +78,7 @@ function expectRoll(si, Vnext) {
  * Backward induction. stopValue(handIdx, rollsUsed) is the value of stopping now.
  * Returns V[u] (Float64Array over 252 hands) for u = uFrom..uMax. Five-of-a-kind is terminal.
  */
-function solve(stopValue, uFrom, uMax) {
+function solve(stopValue, uFrom, uMax, rollFactor = 1) {
   const N = T.hands.length;
   const V = [];
   V[uMax] = new Float64Array(N);
@@ -90,7 +90,7 @@ function solve(stopValue, uFrom, uMax) {
       let best = stopValue(h, u);
       if (T.handEval[h].count < 5) {
         for (const si of T.handSubs[h]) {
-          const e = expectRoll(si, next);
+          const e = expectRoll(si, next) * rollFactor;
           if (e > best) best = e;
         }
       }
@@ -134,10 +134,16 @@ function pBeat(cap, hand) {
 
 /**
  * Decide what to do after a roll.
+ * opts.style: 'cool' (exact) | 'gambler' (overvalues carabinas) | 'cautious' (discounts rolling on)
+ * opts.level: 'sharp' (best option) | 'casual' (a random option within 80% of the best)
  * @returns {{hold: boolean[], stop: boolean}}
  */
-export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable, opponentsAfter, rollCap }) {
+export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable, opponentsAfter, rollCap }, opts = {}, rand = Math.random) {
   ensureTables();
+  const style = opts.style || 'cool';
+  const level = opts.level || 'sharp';
+  const carabinaBias = style === 'gambler' ? 1.6 : 1;
+  const rollFactor = style === 'cautious' ? 0.9 : 1;
   const h = idxOfDice(dice);
   const hand = T.handEval[h];
   if (hand.count === 5 || rollsUsed >= maxRolls) return { hold: held.slice(), stop: true };
@@ -145,7 +151,7 @@ export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable,
   const stopValue = (hi, u) => {
     const hd = T.handEval[hi];
     let v = scoreFor(hd);
-    if (hd.count === 5) return v; // round ends on the spot
+    if (hd.count === 5) return v * carabinaBias; // round ends on the spot
     if (!isOpener && bestOnTable) {
       const c = compare(hd, bestOnTable);
       v *= c > 0 ? 1 : c === 0 ? 0.5 : 0;
@@ -157,17 +163,24 @@ export function decide({ dice, held, rollsUsed, maxRolls, isOpener, bestOnTable,
     return v;
   };
 
-  const V = solve(stopValue, rollsUsed + 1, maxRolls);
-  let best = stopValue(h, rollsUsed);
-  let bestSub = -1;
+  const V = solve(stopValue, rollsUsed + 1, maxRolls, rollFactor);
+  const options = [{ sub: -1, value: stopValue(h, rollsUsed) }];
   for (const si of T.handSubs[h]) {
     if (T.subNext[si].length === 1) continue; // holding everything == stopping
-    const e = expectRoll(si, V[rollsUsed + 1]);
-    if (e > best + 1e-9) { best = e; bestSub = si; }
+    options.push({ sub: si, value: expectRoll(si, V[rollsUsed + 1]) * rollFactor });
   }
-  if (bestSub < 0) return { hold: held.slice(), stop: true };
+  let pick = options[0];
+  for (const o of options) if (o.value > pick.value + 1e-9) pick = o;
+  if (level === 'casual') {
+    // anything within 70% of the best play, and never fewer than the two best options
+    const sorted = options.slice().sort((a, b) => b.value - a.value);
+    let pool = sorted.filter((o) => o.value >= sorted[0].value * 0.7);
+    if (pool.length < 2) pool = sorted.slice(0, 2);
+    pick = pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))];
+  }
+  if (pick.sub < 0) return { hold: held.slice(), stop: true };
 
-  const need = T.subs[bestSub].slice();
+  const need = T.subs[pick.sub].slice();
   const hold = [false, false, false, false, false];
   const order = [...dice.keys()].sort((a, b) => Number(held[b]) - Number(held[a]) || a - b);
   for (const i of order) {

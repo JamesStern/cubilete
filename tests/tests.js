@@ -359,6 +359,110 @@ if (isNode) {
   });
 }
 
+
+/* ---------- v8: personas, AI styles/levels, ledger, game length ---------- */
+const P = await import('../js/personas.js');
+const L = await import('../js/ledger.js');
+const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+const NOHOLD = [false, false, false, false, false];
+
+test('personaFor maps the regulars and rotates for custom names', () => {
+  eq(P.personaFor('Papa'), 'papa'); eq(P.personaFor('honest lil'), 'lil'); eq(P.personaFor('Pedrico'), 'pedrico'); eq(P.personaFor('Ignacio'), 'ignacio');
+  eq(P.personaFor('Bobby', 0), 'ignacio'); eq(P.personaFor('Bobby', 1), 'papa'); eq(P.personaFor('Bobby', 4), 'house');
+  ok(P.PERSONAS[P.personaFor('Anyone', 9)], 'rotation always lands on a persona');
+});
+test('every persona has lines for every event in both languages', () => {
+  const lines = P._lines();
+  for (const k of Object.keys(P.PERSONAS)) for (const lang of ['en', 'es']) for (const ev of P.EVENTS) ok((lines[k][lang][ev] || []).length >= 3, `${k}.${lang}.${ev}`);
+});
+test('line() is deterministic for a seed and interpolates', () => {
+  const a = P.line('ignacio', 'win', 'en', { rival: 'Hudson' }, 7);
+  eq(a, P.line('ignacio', 'win', 'en', { rival: 'Hudson' }, 7));
+  ok(!a.includes('{rival}'));
+  ok(P.line('nobody', 'stand', 'en').length > 0, 'unknown persona falls back to house');
+});
+test('sharp decisions are deterministic and unchanged by rand', () => {
+  const inp = { dice: R.parseDice('K K Q J 9'), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: 2, rollCap: null };
+  deepEq(AI.decide(inp, { level: 'sharp' }, seeded(1)), AI.decide(inp, { level: 'sharp' }, seeded(99)));
+  deepEq(AI.decide(inp), AI.decide(inp, { style: 'cool', level: 'sharp' }));
+});
+test('casual play is legal and sometimes differs from sharp', () => {
+  const inp = { dice: R.parseDice('K K Q J 9'), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: 2, rollCap: null };
+  const sharp = JSON.stringify(AI.decide(inp));
+  let differs = 0;
+  const rand = seeded(42);
+  for (let i = 0; i < 200; i++) {
+    const d = AI.decide(inp, { level: 'casual' }, rand);
+    ok(d.hold.length === 5 && d.hold.every((h, j) => !h || inp.dice[j] !== undefined), 'legal hold');
+    if (JSON.stringify(d) !== sharp) differs++;
+  }
+  ok(differs > 0, 'casual never varied');
+  ok(differs < 200, 'casual never agreed with sharp');
+});
+test('gambler never stands on four of a kind with a roll left; cautious stands where cool rolls', () => {
+  const four = { dice: R.parseDice('K K K K 9'), held: NOHOLD, rollsUsed: 2, maxRolls: 3, isOpener: false, bestOnTable: H('Q Q 9 J 10'), opponentsAfter: 0, rollCap: 3 };
+  eq(AI.decide(four, { style: 'gambler' }).stop, false);
+  // find a spot where cautious differs from cool
+  let found = false;
+  const spots = ['K K K 9 9', 'K K K J 9', 'Q Q Q 9 10', 'K K J 10 9'];
+  for (const d of spots) for (const opp of [2, 3, 5]) {
+    const inp = { dice: R.parseDice(d), held: NOHOLD, rollsUsed: 1, maxRolls: 3, isOpener: true, bestOnTable: null, opponentsAfter: opp, rollCap: null };
+    const cool = AI.decide(inp, { style: 'cool' }).stop;
+    const caut = AI.decide(inp, { style: 'cautious' }).stop;
+    if (caut && !cool) found = true;
+    ok(!(cool && !caut), 'cautious never rolls where cool stands');
+  }
+  ok(found, 'cautious should stand somewhere cool rolls');
+});
+test('game length 5 ends the game at 5; rematch keeps it and gets a new id', () => {
+  const roll = makeRoller([]);
+  let s = G.reduce(G.initialState(), { type: 'SETUP_CONFIRM', targetPatas: 5, players: [{ name: 'H', type: 'human' }, { name: 'Papa', type: 'ai', level: 'casual' }] }, roll);
+  eq(s.targetPatas, 5); ok(s.gameId); eq(s.players[1].persona, 'papa'); eq(s.players[1].level, 'casual'); eq(s.players[0].persona, null);
+  const id = s.gameId;
+  s = drawTo(s, roll, 0);
+  roll.push(KING, KING, KING, KING, KING); s = go(s, { type: 'ROLL' }, roll);
+  eq(s.players[0].patas, 5);
+  s = go(s, { type: 'CONTINUE' }, roll);
+  eq(s.phase, 'game-over');
+  s = go(s, { type: 'REMATCH' }, roll);
+  eq(s.targetPatas, 5); ok(s.gameId !== id); eq(s.players[0].bestHand, null);
+  const bad = G.reduce(G.initialState(), { type: 'SETUP_CONFIRM', targetPatas: 7, players: [{ name: 'a' }, { name: 'b' }] }, roll);
+  eq(bad.targetPatas, 10, 'unknown lengths fall back to 10');
+});
+test('best hand and hints are tracked per player', () => {
+  const roll = makeRoller([]);
+  let s = drawTo(setup4(roll), roll, 0);
+  roll.push(KING, KING, QUEEN, JACK, NEGRO); s = go(s, { type: 'ROLL' }, roll);
+  s = go(s, { type: 'HINT_USED' }, roll); s = go(s, { type: 'HINT_USED' }, roll);
+  eq(s.players[0].hints, 2);
+  s = go(s, { type: 'STOP' }, roll);
+  eq(s.players[0].bestHand.count, 2); eq(s.players[0].bestHand.face, KING);
+  eq(G.reduce(s, { type: 'HINT_USED' }, roll).players[1].hints, 1, 'hint counts for the player at the cup');
+});
+test('ledger: records once per game, picks the buyer, keeps the best hand, settles up', () => {
+  const roll = makeRoller([]);
+  let s = G.reduce(G.initialState(), { type: 'SETUP_CONFIRM', targetPatas: 5, players: [{ name: 'Hudson', type: 'human' }, { name: 'Ignacio', type: 'ai' }, { name: 'Papa', type: 'ai' }] }, roll);
+  s = drawTo(s, roll, 0);
+  roll.push(KING, KING, KING, KING, KING); s = go(s, { type: 'ROLL' }, roll); s = go(s, { type: 'CONTINUE' }, roll);
+  eq(s.phase, 'game-over');
+  eq(L.buyerOf(s), 2, 'tie on 0 patas and 0 rounds → later seat buys');
+  let led = L.recordGame(L.emptyLedger(), s, 1000);
+  eq(led.games.length, 1); eq(led.games[0].buyer, 'Papa'); eq(led.games[0].winner, 'Hudson');
+  eq(led.players.Hudson.wins, 1); eq(led.players.Hudson.carabinas, 1); eq(led.players.Hudson.bestHand.face, KING); eq(led.players.Hudson.bestHand.natural, true);
+  eq(led.players.Papa.drinksOwed, 1); eq(led.players.Ignacio.drinksOwed, 0);
+  const again = L.recordGame(led, s, 2000);
+  eq(again.games.length, 1, 'same gameId is not recorded twice'); eq(again.players.Hudson.games, 1);
+  // a worse best hand does not replace it
+  const s2 = JSON.parse(JSON.stringify(s)); s2.gameId = 'other'; s2.players[0].bestHand = { count: 4, face: KING, natural: true };
+  const led2 = L.recordGame(led, s2, 3000);
+  eq(led2.players.Hudson.bestHand.count, 5); eq(led2.players.Hudson.games, 2); eq(led2.players.Papa.drinksOwed, 2);
+  const settled = L.settleUp(led2);
+  eq(settled.players.Papa.drinksOwed, 0); eq(settled.players.Papa.drinksBought, 2); eq(L.totalOwed(settled), 0);
+  const rows = L.standings(led2);
+  eq(rows[0].name, 'Hudson'); ok(rows[0].winRate === 1);
+  eq(L.recordGame(led, { ...s, phase: 'turn' }, 1).games.length, 1, 'only finished games are recorded');
+});
+
 print(`\n${pass} passed, ${fail} failed`);
 if (isNode) process.exitCode = fail ? 1 : 0;
 export const results = { out, pass, fail };

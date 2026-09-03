@@ -6,6 +6,8 @@ import { faceSVG, miniHand, cupSVG } from './dice.js';
 import * as S from './sound.js';
 import { APP_VERSION } from './version.js';
 import { t, handLabel, logLine, quips, setLang, getLang, LANGS } from './i18n.js';
+import { PERSONAS, line as personaLine } from './personas.js';
+import { LEDGER_KEY, emptyLedger, recordGame, settleUp, standings, totalOwed } from './ledger.js';
 
 const KEY = 'cubilete.state';
 const SEATS_KEY = 'cubilete.seats.v2'; // key bumped so the new default names replace previously saved seats once
@@ -39,11 +41,15 @@ function load() {
   return null;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) { /* ignore */ } }
+let ledger = emptyLedger();
+try { const raw = localStorage.getItem(LEDGER_KEY); if (raw) { const l = JSON.parse(raw); if (l && l.v === 1) ledger = l; } } catch (_) { /* ignore */ }
+function saveLedger() { try { localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger)); } catch (_) { /* ignore */ } }
+const TARGET_KEY = 'cubilete.target';
 
 let state = load();
 const ui = {
   resumePrompt: !!(state && state.phase !== 'setup'),
-  settingsOpen: false, rulesOpen: false, logOpen: false, overlayKey: null,
+  settingsOpen: false, rulesOpen: false, logOpen: false, ledgerOpen: false, overlayKey: null, hint: null,
   busy: false, pendingTumble: null, screen: '', diceMode: '',
 };
 if (!state) state = G.initialState();
@@ -63,6 +69,8 @@ function dispatch(action) {
 }
 
 function afterDispatch(prev, action) {
+  barTalk(prev, action);
+  if (state.phase === 'game-over' && prev.phase !== 'game-over') { ledger = recordGame(ledger, state); saveLedger(); ui.overlayKey = null; renderOverlay(); }
   if (state.phase === 'round-end' && prev.phase !== 'round-end') {
     const h = state.round.winningHand;
     if (h && h.count === 5) {
@@ -74,7 +82,7 @@ function afterDispatch(prev, action) {
     } else S.play('pata');
   }
   if (state.phase === 'game-over' && prev.phase !== 'game-over') { S.play('fanfare'); confetti(); }
-  if (state.phase === 'setup') releaseWake(); else requestWake();
+  if (state.phase === 'setup') { releaseWake(); document.querySelectorAll('.chatter').forEach((el) => el.remove()); } else requestWake();
   scheduleSettle();
   scheduleAi();
 }
@@ -108,7 +116,8 @@ function aiStep() {
     case 'turn': {
       const t = state.turn;
       if (t.rollsUsed === 0) { doRoll(); return; }
-      const d = decide(G.aiInputs(state));
+      const p = state.players[t.player];
+      const d = decide(G.aiInputs(state), { style: (PERSONAS[p.persona] || PERSONAS.house).style, level: p.level || 'sharp' }, Math.random);
       if (d.stop) { dispatch({ type: 'STOP' }); return; }
       if (d.hold.some((h, i) => h !== t.held[i])) { S.play('hold'); dispatch({ type: 'SET_HOLD', held: d.hold }); return; }
       doRoll();
@@ -140,6 +149,52 @@ function doRoll() {
   }, 720);
 }
 
+/* ---------- bar talk ---------- */
+function rivalName() { const h = state.players.find((p) => p.type === 'human'); return h ? h.name : 'Hudson'; }
+function say(idx, event, params = {}) {
+  const p = state.players[idx];
+  if (!p || p.type !== 'ai' || ui.resumePrompt) return;
+  const seed = (state.round ? state.round.number : 0) * 31 + idx * 7 + event.length;
+  const text = personaLine(p.persona, event, getLang(), { rival: rivalName(), ...params }, seed);
+  if (!text) return;
+  document.querySelectorAll('.chatter').forEach((el) => el.remove());
+  const el = document.createElement('div');
+  el.className = 'chatter';
+  el.innerHTML = `<div class="who">${esc(p.name)}</div><div class="say">${esc(text)}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+function barTalk(prev, action) {
+  const ph = state.phase;
+  if (action.type === 'STOP' && prev.phase === 'turn') {
+    const t0 = prev.turn; const p = prev.players[t0.player];
+    if (p.type === 'ai' && t0.rollsUsed < t0.maxRolls) say(t0.player, prev.round.turnPtr === 0 && t0.rollsUsed === 1 ? 'cap' : 'stand');
+    if (prev.round.turnPtr === prev.round.order.length - 1 && (ph === 'desempate' || (ph === 'handoff' && state.handoff.resume === 'desempate'))) {
+      const ai = state.desempate.contenders.find((i) => state.players[i].type === 'ai');
+      if (ai !== undefined) say(ai, 'tie');
+    }
+    return;
+  }
+  if (action.type === 'ROLL' && ph === 'turn' && prev.phase === 'turn') {
+    const t1 = state.turn;
+    if (state.players[t1.player].type === 'ai' && t1.rollsUsed >= 2 && t1.rollsUsed < t1.maxRolls && (state.round.number + t1.player) % 3 === 0) say(t1.player, 'rollOn');
+    return;
+  }
+  if (ph === 'round-end' && prev.phase !== 'round-end') {
+    const w = state.round.winner;
+    if (state.players[w].type === 'ai') say(w, state.round.winningHand.count === 5 ? 'carabina' : 'win');
+    else {
+      const losers = state.round.order.filter((i) => i !== w && state.players[i].type === 'ai');
+      if (losers.length) say(losers[state.round.number % losers.length], 'lose');
+    }
+    return;
+  }
+  if (ph === 'game-over' && prev.phase !== 'game-over') {
+    const buyer = state.players.slice().sort((a, b) => a.patas - b.patas || a.roundsWon - b.roundsWon || b.id - a.id)[0];
+    if (buyer.type === 'ai') say(buyer.id, 'owes');
+  }
+}
+
 /* ---------- render ---------- */
 function render() {
   if (state.phase === 'setup') renderSetup();
@@ -157,8 +212,11 @@ function loadSeats() {
   try { const raw = localStorage.getItem(SEATS_KEY); if (raw) seats = JSON.parse(raw); } catch (_) { /* ignore */ }
   if (!seats && state.lastPlayers) seats = state.lastPlayers;
   if (!Array.isArray(seats) || seats.length < 2) seats = [{ name: G.DEFAULT_NAMES[0], type: 'human' }, { name: G.DEFAULT_NAMES[1], type: 'ai' }];
+  for (const st of seats) if (!st.level) st.level = 'sharp';
   return seats;
 }
+let target = 10;
+try { const tv = Number(localStorage.getItem(TARGET_KEY)); if ([5, 10, 15].includes(tv)) target = tv; else if ([5, 10, 15].includes(state.lastTarget)) target = state.lastTarget; } catch (_) { /* ignore */ }
 function saveSeats() { try { localStorage.setItem(SEATS_KEY, JSON.stringify(seats)); } catch (_) { /* ignore */ } }
 
 function renderSetup() {
@@ -181,22 +239,31 @@ function renderSetup() {
       <div class="box">
         <h2>${t('setup.table')} <small>${t('setup.seats')}</small></h2>
         <div id="seats"></div>
-        <div class="addrow"><button id="add-seat">${t('setup.addSeat')}</button><small>${t('setup.target')}</small></div>
+        <div class="addrow"><button id="add-seat">${t('setup.addSeat')}</button></div>
+        <div class="targetrow"><span id="target-label">${t('setup.target', { n: target })}</span><div class="seg" id="target-seg">${[5, 10, 15].map((n) => `<button data-n="${n}" class="${target === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
       </div>
     </div>
     <div class="foot">
       <button class="btn" id="start">${t('setup.start')}<small>${t('setup.startSub')}</small></button>
-      <div class="links"><button id="open-rules">${t('setup.rules')}</button><button id="open-settings">${t('setup.settings')}</button></div>
+      <div class="links"><button id="open-rules">${t('setup.rules')}</button><button id="open-ledger">${t('tab.open')}</button><button id="open-settings">${t('setup.settings')}</button></div>
       ${isIphone && !standalone ? `<div class="a2hs">${t('setup.a2hs')}</div>` : ''}
     </div>
   </div>`;
   renderSeats();
-  app.querySelector('#add-seat').addEventListener('click', () => { if (seats.length < 6) { seats.push({ name: G.DEFAULT_NAMES[seats.length] || t('seat.player', { n: seats.length + 1 }), type: 'ai' }); renderSeats(); } });
+  app.querySelector('#add-seat').addEventListener('click', () => { if (seats.length < 6) { seats.push({ name: G.DEFAULT_NAMES[seats.length] || t('seat.player', { n: seats.length + 1 }), type: 'ai', level: 'sharp' }); renderSeats(); } });
+  app.querySelector('#target-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-n]'); if (!b) return;
+    target = Number(b.dataset.n); S.play('click');
+    try { localStorage.setItem(TARGET_KEY, String(target)); } catch (_) { /* ignore */ }
+    app.querySelectorAll('#target-seg button').forEach((x) => x.classList.toggle('on', Number(x.dataset.n) === target));
+    app.querySelector('#target-label').textContent = t('setup.target', { n: target });
+  });
+  app.querySelector('#open-ledger').addEventListener('click', () => { S.play('click'); openLedger(); });
   app.querySelector('#lang-toggle').addEventListener('click', () => { S.play('click'); switchLang(LANGS.find((l) => l !== getLang())); });
   app.querySelector('#start').addEventListener('click', () => {
     saveSeats();
     ui.screen = '';
-    dispatch({ type: 'SETUP_CONFIRM', players: seats.map((s) => ({ name: s.name, type: s.type })) });
+    dispatch({ type: 'SETUP_CONFIRM', targetPatas: target, players: seats.map((s) => ({ name: s.name, type: s.type, level: s.level })) });
   });
   app.querySelector('#open-rules').addEventListener('click', () => { ui.rulesOpen = true; renderOverlay(); });
   app.querySelector('#open-settings').addEventListener('click', () => { ui.settingsOpen = true; renderOverlay(); });
@@ -208,14 +275,18 @@ function renderSeats() {
     <div class="seatrow" data-i="${i}">
       <span class="idx">${i + 1}</span>
       <input type="text" maxlength="16" value="${esc(s.name)}" placeholder="${G.DEFAULT_NAMES[i] || t('seat.name')}" autocapitalize="words" enterkeyhint="done">
-      <div class="type"><button data-t="human" class="${s.type === 'human' ? 'on' : ''}">${t('seat.human')}</button><button data-t="ai" class="${s.type === 'ai' ? 'on' : ''}">${t('seat.ai')}</button></div>
       <button class="rm" ${seats.length <= 2 ? 'disabled style="visibility:hidden"' : ''} aria-label="remove">×</button>
+      <div class="opts">
+        <div class="type"><button data-t="human" class="${s.type === 'human' ? 'on' : ''}">${t('seat.human')}</button><button data-t="ai" class="${s.type === 'ai' ? 'on' : ''}">${t('seat.ai')}</button></div>
+        <div class="lvl ${s.type === 'ai' ? '' : 'hidden'}"><button data-l="casual" class="${s.level === 'casual' ? 'on' : ''}">${t('setup.level.casual')}</button><button data-l="sharp" class="${s.level !== 'casual' ? 'on' : ''}">${t('setup.level.sharp')}</button></div>
+      </div>
     </div>`).join('');
   box.querySelectorAll('.seatrow').forEach((row) => {
     const i = Number(row.dataset.i);
     row.querySelector('input').addEventListener('input', (e) => { seats[i].name = e.target.value; });
     row.querySelector('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
     row.querySelectorAll('.type button').forEach((b) => b.addEventListener('click', () => { seats[i].type = b.dataset.t; S.play('click'); renderSeats(); }));
+    row.querySelectorAll('.lvl button').forEach((b) => b.addEventListener('click', () => { seats[i].level = b.dataset.l; S.play('click'); renderSeats(); }));
     row.querySelector('.rm').addEventListener('click', () => { seats.splice(i, 1); renderSeats(); });
   });
   const add = app.querySelector('#add-seat');
@@ -252,6 +323,7 @@ function ensureTable() {
   app.querySelector('#btn-settings').addEventListener('click', () => { S.play('click'); ui.settingsOpen = true; renderOverlay(); });
   app.querySelector('#btn-log').addEventListener('click', () => { S.play('click'); ui.logOpen = true; renderOverlay(); });
   app.querySelector('#controls').addEventListener('click', onControl);
+  app.querySelector('#message').addEventListener('click', (e) => { if (e.target.closest('[data-a=hint]')) { S.play('click'); askPapa(); } });
   app.querySelector('#dice').addEventListener('click', onDieTap);
 }
 
@@ -270,7 +342,7 @@ function updateScores() {
   const r = state.round;
   app.querySelector('#scores').innerHTML = state.players.map((p) => {
     const res = r && r.results[p.id];
-    const chips = Array.from({ length: Math.min(p.patas, 10) }, (_, k) => `<i class="${k >= 5 ? 'big' : ''}"></i>`).join('');
+    const chips = Array.from({ length: Math.min(p.patas, state.targetPatas) }, (_, k) => `<i class="${k >= state.targetPatas / 2 ? 'big' : ''}"></i>`).join('');
     const hand = res ? miniHand(res.dice) : (r && r.winner === null && actor === p.id && state.phase !== 'round-end' ? '<span style="opacity:.6">…</span>' : '<span style="opacity:.35">—</span>');
     return `<div class="seat ${actor === p.id ? 'active' : ''} ${r && r.openerIdx === p.id ? 'opener' : ''}">
       <div class="name">${esc(p.name)}</div>
@@ -333,6 +405,9 @@ function updateDice() {
     el.disabled = !canHold;
   });
   const complete = G.turnComplete(state);
+  const hint = ui.hint && ph === 'turn' && ui.hint.key === hintKey() ? ui.hint : null;
+  if (!hint) ui.hint = null;
+  els.forEach((el, i) => el.classList.toggle('hint', !!(hint && !hint.stop && hint.hold[i])));
   if (ui.pendingTumble) {
     els.forEach((el, i) => { if (ui.pendingTumble[i] && dice) { el.classList.remove('tumble'); void el.offsetWidth; el.classList.add('tumble'); } });
     ui.pendingTumble = null;
@@ -345,6 +420,8 @@ function updateDice() {
   cup.classList.toggle('hidden', ph === 'round-end' || ph === 'game-over');
   const holdable = ph === 'turn' && dice && state.turn.rollsUsed >= 1 && state.turn.rollsUsed < state.turn.maxRolls;
   felt.textContent = holdable ? (state.players[state.turn.player].type === 'human' ? t('felt.hold') : t('felt.ai')) : (complete ? t('felt.final') : '');
+  felt.classList.toggle('hinting', !!hint);
+  if (hint) felt.textContent = hint.stop ? t('hint.stand') : (hint.hold.some(Boolean) ? t('hint.keep') : t('hint.keepNone'));
 }
 
 const T = t;
@@ -376,7 +453,19 @@ function updateMessage() {
     const r = state.round;
     who = pname(r.winner); what = handLabel(r.winningHand); sub = T('msg.patas', { n: r.patasAwarded });
   }
-  m.innerHTML = `<div class="who">${who}</div><div class="what">${what}</div><div class="sub">${sub}</div>`;
+  let extra = '';
+  if (ph === 'turn' && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && !G.turnComplete(state) && !ui.busy && !(ui.hint && ui.hint.key === hintKey())) {
+    extra = `<button class="hintbtn" data-a="hint">${t('hint.btn')}</button>`;
+  }
+  m.innerHTML = `<div class="who">${who}</div><div class="what">${what}</div><div class="sub">${sub}</div>${extra}`;
+}
+function hintKey() { return state.turn ? JSON.stringify([state.turn.player, state.turn.rollsUsed, state.turn.dice]) : ''; }
+function askPapa() {
+  if (state.phase !== 'turn' || !state.turn.dice) return;
+  const d = decide(G.aiInputs(state), { style: 'cool', level: 'sharp' });
+  ui.hint = { hold: d.hold, stop: d.stop, key: hintKey() };
+  dispatch({ type: 'HINT_USED' });
+  render();
 }
 
 function updateControls() {
@@ -448,9 +537,22 @@ function renderOverlay() {
       <div class="row"><span>${t('settings.sound')}<small>${t('settings.soundSub')}</small></span><button class="toggle ${state.settings.muted ? '' : 'on'}" data-o="mute" aria-label="sound"></button></div>
       <div class="row"><span>${t('settings.update')}<small>${standalone ? t('settings.installed') : t('settings.browser')}</small></span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="update">${t('settings.check')}</button></div>
       <div class="row"><span>${t('settings.rules')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="rules">${t('settings.view')}</button></div>
+      <div class="row"><span>${t('tab.title')}</span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="ledger">${t('settings.view')}</button></div>
       ${ph !== 'setup' ? `<div class="row"><span>${t('settings.abandon')}<small>${t('settings.abandonSub')}</small></span><button class="btn ghost" style="flex:0 0 auto;padding:8px 12px;font-size:12px" data-o="abandon">${t('settings.quit')}</button></div>` : ''}
       <div class="actions"><button class="btn" data-o="close">${t('btn.close')}</button></div>
       <div class="version">Cubilete ${APP_VERSION} · ${window.innerWidth}×${window.innerHeight} / screen ${screen.width}×${screen.height} · inset ${getComputedStyle(document.documentElement).getPropertyValue('--sa-bottom').trim() || '0'} · ${standalone ? 'standalone' : 'browser'}</div></div>`;
+  } else if (ui.ledgerOpen) {
+    key = 'ledger' + ledger.games.length + totalOwed(ledger);
+    const rows = standings(ledger);
+    const fmtDate = (ms) => new Date(ms).toLocaleDateString(getLang() === 'es' ? 'es' : 'en', { month: 'short', day: 'numeric' });
+    html = `<div class="card ledger"><div class="checker"></div><h2 style="text-align:center">${t('tab.title')}</h2>
+      ${rows.length ? `<div class="people">${rows.map((r) => `<div class="person">
+        <div class="top"><span class="nm">${esc(r.name)}${r.type === 'ai' ? ` <span class="ai">${t('seat.ai')}</span>` : ''}</span><span class="owed ${r.drinksOwed ? 'has' : ''}">${r.drinksOwed} <small>${t('tab.owedShort')}</small></span></div>
+        <div class="stats">${t('tab.statGames', { n: r.games })} · ${t('tab.statWins', { n: r.wins })} (${Math.round(r.winRate * 100)}%) · ${t('tab.statCarabinas', { n: r.carabinas })}${r.hints ? ' · ' + t('tab.hints', { n: r.hints }) : ''}${r.drinksBought ? ' · ' + t('tab.bought', { n: r.drinksBought }) : ''}</div>
+        ${r.bestHand ? `<div class="best">${t('tab.best')}: <b>${esc(handLabel(r.bestHand))}</b></div>` : ''}
+      </div>`).join('')}</div>
+      <h3>${t('tab.recent')}</h3><div class="recent">${ledger.games.slice(0, 10).map((g) => `<div class="row"><span class="d">${fmtDate(g.date)}</span><span>${esc(t('tab.gameLine', { winner: g.winner, target: g.target, buyer: g.buyer }))}</span></div>`).join('')}</div>` : `<div class="empty">${t('tab.empty')}</div>`}
+      <div class="actions">${rows.length ? `<button class="btn ghost" data-o="settle">${t('tab.settle')}</button><button class="btn ghost" data-o="clearledger">${t('tab.clear')}</button>` : ''}<button class="btn" data-o="close">${t('btn.close')}</button></div></div>`;
   } else if (ui.rulesOpen) {
     key = 'rules';
     html = `<div class="card rules"><div class="checker"></div><h2 style="text-align:center">${t('rules.title')}</h2>
@@ -494,9 +596,10 @@ function renderOverlay() {
   } else if (ph === 'game-over') {
     key = 'game-over';
     const sorted = state.players.slice().sort((a, b) => b.patas - a.patas);
-    const loser = sorted[sorted.length - 1];
+    const loser = state.players.slice().sort((a, b) => a.patas - b.patas || a.roundsWon - b.roundsWon || b.id - a.id)[0];
+    const owed = ledger.players[loser.name] ? ledger.players[loser.name].drinksOwed : 0;
     html = `<div class="card carabina"><div class="checker"></div><h2>${t('gameOver.title')}</h2><div class="big">${pname(state.winner)}</div><p><b>${t('gameOver.patas', { n: state.players[state.winner].patas })}</b></p>
-      <p class="quip">${t('gameOver.buys', { name: esc(loser.name) })}</p>
+      <p class="quip">${t('gameOver.buys', { name: esc(loser.name) })}${owed ? ' ' + esc(t('tab.owes', { name: loser.name, n: owed })) + '.' : ''} <button class="hintbtn" data-o="ledger">${t('tab.open')}</button></p>
       <div class="scoreboard">${sorted.map((p) => `<div class="row ${p.id === state.winner ? 'champ' : ''}"><span>${esc(p.name)}<span class="meta">${t('gameOver.rounds', { n: p.roundsWon })}${p.carabinas ? ` · ${t('gameOver.carabinas', { n: p.carabinas })}` : ''}</span></span><span class="n">${p.patas}</span></div>`).join('')}</div>
       <div class="actions"><button class="btn" data-o="rematch">${t('btn.rematch')}<small>${t('btn.rematchSub')}</small></button><button class="btn secondary" data-o="new">${t('btn.newTable')}</button></div></div>`;
   }
@@ -506,6 +609,11 @@ function renderOverlay() {
   overlayEl.querySelectorAll('[data-o]').forEach((b) => b.addEventListener('click', onOverlay));
 }
 
+function openLedger() {
+  ui.settingsOpen = false; ui.ledgerOpen = true; ui.overlayKey = null; renderOverlay();
+  const reader = state.players.find((p) => p.type === 'ai' && p.persona === 'pedrico') || state.players.find((p) => p.type === 'ai');
+  if (reader && ledger.games.length) say(reader.id, 'tab');
+}
 function onOverlay(e) {
   const a = e.currentTarget.dataset.o;
   S.play('click');
@@ -514,7 +622,10 @@ function onOverlay(e) {
     case 'abandon':
       if (ui.resumePrompt || confirm(t('confirm.abandon'))) { ui.resumePrompt = false; ui.settingsOpen = false; ui.overlayKey = null; dispatch({ type: 'NEW_GAME' }); render(); }
       break;
-    case 'close': ui.settingsOpen = false; ui.rulesOpen = false; ui.logOpen = false; ui.overlayKey = null; renderOverlay(); break;
+    case 'close': ui.settingsOpen = false; ui.rulesOpen = false; ui.logOpen = false; ui.ledgerOpen = false; ui.overlayKey = null; renderOverlay(); break;
+    case 'ledger': openLedger(); break;
+    case 'settle': if (confirm(t('tab.confirmSettle'))) { ledger = settleUp(ledger); saveLedger(); ui.overlayKey = null; renderOverlay(); } break;
+    case 'clearledger': if (confirm(t('tab.confirmClear'))) { ledger = emptyLedger(); saveLedger(); ui.overlayKey = null; renderOverlay(); } break;
     case 'rules': ui.settingsOpen = false; ui.rulesOpen = true; ui.overlayKey = null; renderOverlay(); break;
     case 'mute': dispatch({ type: 'SET_SETTING', key: 'muted', value: !state.settings.muted }); S.setMuted(!!state.settings.muted); ui.overlayKey = null; renderOverlay(); break;
     case 'update': checkForUpdate(); break;

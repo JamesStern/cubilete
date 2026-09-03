@@ -1,6 +1,7 @@
 // Pure, serializable game state machine for Cubilete. reduce(state, action, rollDie) → new state.
 // rollDie() must return an int 1..6 (face constants from rules.js). No DOM, no storage.
 import { evaluate, compare, scoreFor, bestOf } from './rules.js';
+import { personaFor } from './personas.js';
 
 export const DEFAULT_NAMES = ['Hudson', 'Ignacio', 'Papa', 'Honest Lil', 'Pedrico', 'Constante'];
 export const MAX_ROLLS = 3;
@@ -70,10 +71,24 @@ function newTurn(s, playerIdx, maxRolls) {
   gate(s, playerIdx, 'turn');
 }
 
+/** Remember each player's best hand of the game (for the record). */
+function noteHand(s, idx, hand) {
+  const p = s.players[idx];
+  const b = p.bestHand;
+  const c = b ? compare(hand, b) : 1;
+  if (c > 0 || (c === 0 && hand.natural && !b.natural)) p.bestHand = { count: hand.count, face: hand.face, natural: hand.natural, name: hand.name };
+}
+
+function newGameId() {
+  // not from rollDie: the scripted roller in tests must not be consumed by ids
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
 function finishTurn(s) {
   const t = s.turn;
   const r = s.round;
   r.results[t.player] = { dice: t.dice.slice(), hand: t.hand, rolls: t.rollsUsed };
+  noteHand(s, t.player, t.hand);
   if (r.turnPtr === 0) {
     r.rollCap = t.rollsUsed;
     if (r.rollCap < MAX_ROLLS) log(s, 'log.cap', { name: name(s, t.player), n: r.rollCap });
@@ -134,11 +149,17 @@ export function reduce(prev, action, rollDie) {
     case 'SETUP_CONFIRM': {
       const seats = action.players;
       if (!seats || seats.length < 2 || seats.length > 6) return prev;
-      s.players = seats.map((p, i) => ({
-        id: i, name: (p.name || DEFAULT_NAMES[i]).trim().slice(0, 16) || DEFAULT_NAMES[i],
-        type: p.type === 'ai' ? 'ai' : 'human', patas: 0, roundsWon: 0, carabinas: 0,
-      }));
-      s.targetPatas = action.targetPatas || 10;
+      s.players = seats.map((p, i) => {
+        const nm = (p.name || DEFAULT_NAMES[i]).trim().slice(0, 16) || DEFAULT_NAMES[i];
+        const type = p.type === 'ai' ? 'ai' : 'human';
+        return {
+          id: i, name: nm, type, patas: 0, roundsWon: 0, carabinas: 0, bestHand: null, hints: 0,
+          persona: type === 'ai' ? (p.persona || personaFor(nm, i)) : null,
+          level: type === 'ai' ? (p.level === 'casual' ? 'casual' : 'sharp') : null,
+        };
+      });
+      s.targetPatas = [5, 10, 15].includes(action.targetPatas) ? action.targetPatas : 10;
+      s.gameId = newGameId();
       s.log = [];
       // one human at the table never needs to pass the phone
       s.phoneHolder = humanCount(s) === 1 ? s.players.findIndex((p) => p.type === 'human') : null;
@@ -206,6 +227,7 @@ export function reduce(prev, action, rollDie) {
         t.lastRolled = t.held.map((h) => !h);
         if (t.hand.count === 5) {
           s.round.results[t.player] = { dice: t.dice.slice(), hand: t.hand, rolls: t.rollsUsed };
+          noteHand(s, t.player, t.hand);
           s.round.carabina = { player: t.player, hand: t.hand };
           endRound(s, t.player, t.hand);
           return s;
@@ -219,6 +241,7 @@ export function reduce(prev, action, rollDie) {
         const dice = rollFive(rollDie);
         const hand = evaluate(dice);
         d.results[who] = { dice, hand };
+        noteHand(s, who, hand);
         log(s, 'log.desempateRoll', { name: name(s, who), hand });
         d.ptr++;
         if (d.ptr < d.contenders.length) gate(s, d.contenders[d.ptr], 'desempate');
@@ -264,9 +287,15 @@ export function reduce(prev, action, rollDie) {
       finishTurn(s);
       return s;
     }
+    case 'HINT_USED': {
+      if (s.phase !== 'turn') return prev;
+      s.players[s.turn.player].hints = (s.players[s.turn.player].hints || 0) + 1;
+      return s;
+    }
     case 'REMATCH': {
       if (s.phase !== 'game-over') return prev;
-      for (const p of s.players) { p.patas = 0; p.roundsWon = 0; p.carabinas = 0; }
+      for (const p of s.players) { p.patas = 0; p.roundsWon = 0; p.carabinas = 0; p.bestHand = null; p.hints = 0; }
+      s.gameId = newGameId();
       s.winner = null;
       s.round = null;
       s.log = [];
@@ -277,7 +306,8 @@ export function reduce(prev, action, rollDie) {
     case 'NEW_GAME': {
       const fresh = initialState();
       fresh.settings = s.settings;
-      fresh.lastPlayers = s.players.map((p) => ({ name: p.name, type: p.type }));
+      fresh.lastPlayers = s.players.map((p) => ({ name: p.name, type: p.type, level: p.level }));
+      fresh.lastTarget = s.targetPatas;
       return fresh;
     }
     case 'SET_SETTING': {
