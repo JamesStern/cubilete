@@ -305,7 +305,14 @@ function renderSetup() {
     </div>
   </div>`;
   renderSeats();
-  app.querySelector('#add-seat').addEventListener('click', () => { if (seats.length < 6) { seats.push({ name: G.DEFAULT_NAMES[seats.length] || t('seat.player', { n: seats.length + 1 }), type: 'ai', level: 'sharp' }); renderSeats(); } });
+  app.querySelector('#add-seat').addEventListener('click', () => {
+    if (seats.length >= 6) return;
+    // the first regular not already at the table, so removing Ignacio and adding a seat brings in Lil, not another Papa
+    const taken = new Set(seats.map((x) => x.name.trim().toLowerCase()));
+    const name = G.DEFAULT_NAMES.find((n) => !taken.has(n.toLowerCase())) || t('seat.player', { n: seats.length + 1 });
+    seats.push({ name, type: 'ai', level: 'sharp' });
+    renderSeats();
+  });
   app.querySelector('#target-seg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-n]'); if (!b) return;
     target = Number(b.dataset.n); S.play('click');
