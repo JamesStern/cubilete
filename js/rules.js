@@ -14,8 +14,6 @@ export const FACE_NAME = { 1: 'Negro', 2: 'Gallego', 3: 'Jeva', 4: 'Cundanga', 5
 export const FACE_PLURAL = { 1: 'Negros', 2: 'Gallegos', 3: 'Jevas', 4: 'Cundangas', 5: 'Reyes', 6: 'Ases' };
 export const FACE_SHORT = { 1: '9', 2: '10', 3: 'J', 4: 'Q', 5: 'K', 6: 'A' };
 
-const COUNT_WORD = { 1: '', 2: 'Par de', 3: 'Tres', 4: 'Cuatro', 5: 'Cinco' };
-
 /** Parse "A K Q J 10 9" style strings into face ints (handy for tests). */
 export function parseDice(str) {
   const map = { A: ACE, K: KING, Q: QUEEN, J: JACK, '10': GALLEGO, '9': NEGRO };
@@ -69,14 +67,6 @@ export function carabinaName(hand) {
   if (hand.face === ACE) return 'Carabina de Ases';
   if (hand.face === KING) return hand.natural ? 'Carabina de Reyes Naturales' : 'Carabina de Reyes No Naturales';
   return 'Carabina de ' + FACE_PLURAL[hand.face];
-}
-
-/** Short Spanish label for any hand: "Cuatro Reyes", "Par de Negros", "Rey alto". */
-export function handLabel(hand) {
-  if (hand.count === 5) return hand.name;
-  if (hand.count === 1) return FACE_NAME[hand.face] + ' alto';
-  const noun = hand.count === 2 ? FACE_PLURAL[hand.face] : FACE_PLURAL[hand.face];
-  return `${COUNT_WORD[hand.count]} ${noun}`;
 }
 
 /** Best hand among an array of hands; returns { best, winners: [indices] }. */

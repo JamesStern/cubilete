@@ -1,6 +1,6 @@
 // Pure, serializable game state machine for Cubilete. reduce(state, action, rollDie) → new state.
 // rollDie() must return an int 1..6 (face constants from rules.js). No DOM, no storage.
-import { evaluate, compare, scoreFor, bestOf, FACE_NAME, handLabel } from './rules.js';
+import { evaluate, compare, scoreFor, bestOf } from './rules.js';
 
 export const DEFAULT_NAMES = ['Hudson', 'Papa', 'Bobby', 'Roberto', 'Honest Lil', 'Constante'];
 export const MAX_ROLLS = 3;
@@ -19,14 +19,14 @@ export function initialState() {
     desempate: null,
     handoff: null,
     log: [],
-    settings: { muted: false },
+    settings: { muted: false, lang: 'en' },
   };
 }
 
 const clone = (s) => JSON.parse(JSON.stringify(s));
 
-function log(s, line) {
-  s.log.push(line);
+function log(s, k, p = {}) {
+  s.log.push({ k, p });
   if (s.log.length > MAX_LOG) s.log.splice(0, s.log.length - MAX_LOG);
 }
 
@@ -76,9 +76,9 @@ function finishTurn(s) {
   r.results[t.player] = { dice: t.dice.slice(), hand: t.hand, rolls: t.rollsUsed };
   if (r.turnPtr === 0) {
     r.rollCap = t.rollsUsed;
-    if (r.rollCap < MAX_ROLLS) log(s, `${name(s, t.player)} se planta a la ${r.rollCap === 1 ? 'primera' : 'segunda'}: máximo ${r.rollCap} tirada${r.rollCap > 1 ? 's' : ''} para los demás.`);
+    if (r.rollCap < MAX_ROLLS) log(s, 'log.cap', { name: name(s, t.player), n: r.rollCap });
   }
-  log(s, `${name(s, t.player)}: ${handLabel(t.hand)}.`);
+  log(s, 'log.hand', { name: name(s, t.player), hand: t.hand });
   r.turnPtr++;
   if (r.turnPtr < r.order.length) {
     newTurn(s, r.order[r.turnPtr], r.rollCap);
@@ -95,7 +95,7 @@ function resolve(s) {
   if (tied.length === 1) {
     endRound(s, tied[0], r.results[tied[0]].hand);
   } else {
-    log(s, `Empate entre ${tied.map((i) => name(s, i)).join(' y ')}. ¡Desempate!`);
+    log(s, 'log.tie', { names: tied.map((i) => name(s, i)) });
     startDesempate(s, tied);
   }
 }
@@ -119,8 +119,8 @@ function endRound(s, winnerIdx, hand) {
   s.turn = null;
   s.desempate = null;
   s.handoff = null;
-  if (hand.count === 5) log(s, `¡${hand.name}! ${p.name} gana ${patas} pata${patas > 1 ? 's' : ''}.`);
-  else log(s, `Una pata para ${p.name} con ${handLabel(hand)}.`);
+  if (hand.count === 5) log(s, 'log.carabina', { name: p.name, hand, n: patas });
+  else log(s, 'log.pata', { name: p.name, hand });
   s.phase = 'round-end';
 }
 
@@ -142,7 +142,7 @@ export function reduce(prev, action, rollDie) {
       s.log = [];
       // one human at the table never needs to pass the phone
       s.phoneHolder = humanCount(s) === 1 ? s.players.findIndex((p) => p.type === 'human') : null;
-      log(s, 'Un dado cada uno: el más alto abre.');
+      log(s, 'log.draw');
       startDraw(s, s.players.map((p) => p.id));
       return s;
     }
@@ -160,12 +160,12 @@ export function reduce(prev, action, rollDie) {
       for (const i of d.contenders) hi = Math.max(hi, d.rolls[i]);
       const tied = d.contenders.filter((i) => d.rolls[i] === hi);
       if (tied.length > 1) {
-        log(s, `Empate a ${FACE_NAME[hi]}: vuelven a tirar ${tied.map((i) => name(s, i)).join(' y ')}.`);
+        log(s, 'log.drawTie', { face: hi, names: tied.map((i) => name(s, i)) });
         s.draw = { contenders: tied, ptr: 0, rolls: {}, previous: d.rolls };
         gate(s, tied[0], 'draw');
         return s;
       }
-      log(s, `${name(s, tied[0])} saca ${FACE_NAME[hi]} y abre.`);
+      log(s, 'log.opener', { name: name(s, tied[0]), face: hi });
       s.draw = { ...d, done: true, opener: tied[0] };
       s.phase = 'draw-done';
       return s;
@@ -187,7 +187,7 @@ export function reduce(prev, action, rollDie) {
         if (s.players.some((p) => p.patas >= s.targetPatas)) {
           s.phase = 'game-over';
           s.winner = s.players.reduce((b, p) => (p.patas > s.players[b].patas ? p.id : b), 0);
-          log(s, `¡${name(s, s.winner)} gana la partida!`);
+          log(s, 'log.win', { name: name(s, s.winner) });
           return s;
         }
         startRound(s, r.winner, r.number + 1);
@@ -219,7 +219,7 @@ export function reduce(prev, action, rollDie) {
         const dice = rollFive(rollDie);
         const hand = evaluate(dice);
         d.results[who] = { dice, hand };
-        log(s, `Desempate — ${name(s, who)}: ${handLabel(hand)}.`);
+        log(s, 'log.desempateRoll', { name: name(s, who), hand });
         d.ptr++;
         if (d.ptr < d.contenders.length) {
           gate(s, d.contenders[d.ptr], 'desempate');
@@ -232,7 +232,7 @@ export function reduce(prev, action, rollDie) {
           s.round.desempate = d;
           endRound(s, tied[0], d.results[tied[0]].hand);
         } else {
-          log(s, 'Otro empate. Se repite.');
+          log(s, 'log.tieAgain');
           startDesempate(s, tied);
         }
         return s;
@@ -267,7 +267,7 @@ export function reduce(prev, action, rollDie) {
       s.winner = null;
       s.round = null;
       s.log = [];
-      log(s, 'Revancha. Un dado cada uno.');
+      log(s, 'log.rematch');
       startDraw(s, s.players.map((p) => p.id));
       return s;
     }

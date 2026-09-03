@@ -3,6 +3,7 @@ import * as R from '../js/rules.js';
 import * as G from '../js/game.js';
 import * as AI from '../js/ai.js';
 import { APP_VERSION } from '../js/version.js';
+import { handLabel, logLine, t, setLang } from '../js/i18n.js';
 
 const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
 const out = [];
@@ -55,11 +56,33 @@ test('compare: count beats face', () => {
 test('compare: natural is not a key (tie → desempate)', () => {
   eq(R.compare(R.evaluate(R.parseDice('K K A Q 9')), R.evaluate(R.parseDice('K K K J 10'))), 0);
 });
-test('handLabel', () => {
-  eq(R.handLabel(R.evaluate(R.parseDice('K K K 9 Q'))), 'Tres Reyes');
-  eq(R.handLabel(R.evaluate(R.parseDice('9 9 Q J 10'))), 'Par de Negros');
-  eq(R.handLabel(R.evaluate(R.parseDice('K Q J 10 9'))), 'Rey alto');
-  eq(R.handLabel(R.evaluate(R.parseDice('K K K K K'))), 'Carabina de Reyes Naturales');
+test('handLabel keeps the proper terms in both languages', () => {
+  eq(handLabel(R.evaluate(R.parseDice('K K K 9 Q')), 'en'), 'Three Reyes');
+  eq(handLabel(R.evaluate(R.parseDice('9 9 Q J 10')), 'en'), 'Pair of Negros');
+  eq(handLabel(R.evaluate(R.parseDice('K Q J 10 9')), 'en'), 'Rey high');
+  eq(handLabel(R.evaluate(R.parseDice('K K K K K')), 'en'), 'Carabina de Reyes Naturales');
+  eq(handLabel(R.evaluate(R.parseDice('K K K 9 Q')), 'es'), 'Tres Reyes');
+  eq(handLabel(R.evaluate(R.parseDice('9 9 Q J 10')), 'es'), 'Par de Negros');
+  eq(handLabel(R.evaluate(R.parseDice('K Q J 10 9')), 'es'), 'Rey alto');
+});
+test('t() falls back to English and handles the _1 plural variant', () => {
+  eq(t('msg.patas', { n: 2 }, 'en'), '+2 patas'); eq(t('msg.patas', { n: 1 }, 'en'), '+1 pata');
+  eq(t('btn.roll', {}, 'es'), 'Tirar'); eq(t('nope', {}, 'es'), 'nope');
+});
+test('log entries render in both languages', () => {
+  const e = { k: 'log.carabina', p: { name: 'Hudson', hand: R.evaluate(R.parseDice('K K K K K')), n: 5 } };
+  eq(logLine(e, 'en'), 'Carabina de Reyes Naturales! Hudson takes 5 patas.');
+  eq(logLine(e, 'es'), '¡Carabina de Reyes Naturales! Hudson gana 5 patas.');
+  eq(logLine({ k: 'log.drawTie', p: { face: KING, names: ['A', 'B'] } }, 'en'), 'Tied on Rey: A & B roll again.');
+  eq(logLine('legacy string'), 'legacy string');
+});
+test('every log key produced by game.js exists in the dictionary', () => {
+  setLang('en');
+  const roll = makeRoller([]);
+  let s = drawTo(setup4(roll), roll, 0);
+  let steps = 0;
+  while (s.phase !== 'round-end' && steps++ < 60) s = go(s, { type: 'ROLL' }, roll);
+  for (const e of s.log) ok(typeof e === 'object' && logLine(e) !== e.k, 'untranslated ' + JSON.stringify(e));
 });
 
 /* ---------- game reducer ---------- */

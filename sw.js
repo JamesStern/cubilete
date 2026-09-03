@@ -1,4 +1,4 @@
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `cubilete-${VERSION}`;
 // On localhost go network-first so edits show up immediately; production is cache-first.
 const DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
@@ -10,6 +10,7 @@ const PRECACHE = [
   './js/version.js',
   './js/rules.js',
   './js/ai.js',
+  './js/i18n.js',
   './js/game.js',
   './js/dice.js',
   './js/sound.js',

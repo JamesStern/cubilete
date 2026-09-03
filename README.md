@@ -31,6 +31,7 @@ Source rules: https://www.onsitecigars.com/how-to-play-cubilete/ (gaps filled wi
 
 ## Features
 
+- English by default; switch to Spanish from the title screen or Settings. Game terms (As, Rey, Cundanga, Jeva, Gallego, Negro, patas, desempate, and every *Carabina de …*) keep their proper names in both languages.
 - Pass-and-play at one phone: 2–6 seats, any mix of people and computer players.
 - The computer plays an exact expected-value strategy (full enumeration of the 252 hand states, target-aware: it knows what it has to beat, how many players follow, and how the opener's cap changes the odds).
 - Session scoreboard with patas, rounds and carabinas; the game resumes exactly where you left it if the app is closed.
@@ -65,6 +66,7 @@ css/style.css         the lounge
 js/rules.js           evaluator, comparison, scoring (pure)
 js/game.js            state machine / reducer (pure, serializable)
 js/ai.js              exact DP opponent (pure)
+js/i18n.js            English/Spanish strings and hand labels
 js/dice.js            SVG dice faces and the leather cup
 js/sound.js           Web Audio synth
 js/ui.js              rendering, input, AI driver, persistence, SW registration

@@ -359,3 +359,7 @@ input { font: inherit; }
   #app { max-width: 480px; margin: 0 auto; }
 }
 .die.in-cup { opacity: 0; transform: translate(50px, -80px) scale(.4) rotate(120deg); transition: transform .3s ease-in, opacity .25s; }
+.langpill { position: absolute; top: calc(10px + var(--sa-top)); right: 12px; background: rgba(20,10,6,.7); border: 1px solid rgba(245,184,46,.6); color: var(--cohiba); border-radius: 999px; padding: 6px 12px; font-family: var(--serif-head); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.seg { display: flex; border: 1px solid rgba(245,184,46,.5); border-radius: 8px; overflow: hidden; }
+.seg button { background: none; border: 0; padding: 8px 10px; font-size: 12px; letter-spacing: .06em; font-family: var(--serif-head); text-transform: uppercase; color: var(--bone); }
+.seg button.on { background: var(--cohiba); color: #1a0e06; }
