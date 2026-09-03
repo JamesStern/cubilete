@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cubilete">
+  <meta name="theme-color" content="#2a140c">
+  <meta name="description" content="Cubilete — el juego de dados cubano, a la manera de El Floridita.">
+  <title>Cubilete</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="sky"></div>
+    <div class="sun"></div>
+    <div class="palms">
+      <svg viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice">
+        <g fill="#1a0f1c">
+          <path d="M40 200 L46 120 Q48 100 44 80 L52 82 Q54 110 52 200Z"/>
+          <path d="M48 84 Q10 70 0 90 Q30 84 48 92Z M48 84 Q20 50 30 40 Q40 70 52 86Z M48 84 Q60 40 90 40 Q60 60 52 88Z M48 84 Q90 60 110 80 Q80 80 52 90Z M46 86 Q70 96 84 118 Q60 100 46 92Z"/>
+          <path d="M360 200 L354 130 Q352 105 356 90 L348 92 Q346 120 348 200Z"/>
+          <path d="M352 94 Q390 78 400 96 Q370 92 352 100Z M352 94 Q380 58 372 50 Q362 80 348 96Z M352 94 Q340 50 310 52 Q340 70 348 98Z M352 94 Q310 70 290 90 Q320 90 348 100Z M354 96 Q330 106 316 126 Q340 110 354 102Z"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sea"></div>
+    <div class="bar"></div>
+    <div class="smoke"></div>
+    <div class="vignette"></div>
+  </div>
+  <div id="app"></div>
+  <script type="module" src="./js/ui.js"></script>
+</body>
+</html>
