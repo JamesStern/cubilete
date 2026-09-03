@@ -221,9 +221,13 @@ test('desempate: tied best hands re-roll; three-way then two-way', () => {
   roll.push(QUEEN, QUEEN, QUEEN, JACK, NEGRO); s = go(s, { type: 'ROLL' }, roll);
   roll.push(QUEEN, QUEEN, QUEEN, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
   roll.push(KING, JACK, JACK, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
+  eq(s.phase, 'desempate', 'last desempate roll stays on the table'); ok(G.turnComplete(s)); eq(G.currentActor(s), 2, 'last roller is shown');
+  eq(G.reduce(s, { type: 'ROLL' }, roll), s, 'no extra rolls');
+  s = go(s, { type: 'STOP' }, roll);
   eq(s.phase, 'desempate'); deepEq(s.desempate.contenders, [0, 1]);
+  eq(G.reduce(s, { type: 'STOP' }, roll), s, 'STOP before everyone rolled is a no-op');
   roll.push(KING, QUEEN, JACK, GALLEGO, NEGRO); s = go(s, { type: 'ROLL' }, roll);
-  roll.push(NEGRO, NEGRO, QUEEN, JACK, GALLEGO); s = go(s, { type: 'ROLL' }, roll);
+  roll.push(NEGRO, NEGRO, QUEEN, JACK, GALLEGO); s = rollAndSettle(s, roll);
   eq(s.phase, 'round-end'); eq(s.round.winner, 1); eq(s.round.patasAwarded, 1); eq(s.players[1].patas, 1);
 });
 test('Carabina de Ases = 10 patas → game over on CONTINUE', () => {

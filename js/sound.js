@@ -5,11 +5,28 @@ let muted = false;
 export function setMuted(m) { muted = !!m; }
 export function isMuted() { return muted; }
 
-/** Call from a user gesture (pointerdown) to unlock iOS audio. */
+let unlocked = false;
+// A few ms of silence as a WAV: playing it through <audio> on the first tap moves iOS to the
+// "playback" audio session so Web Audio is heard in a home-screen app (and past the silent switch).
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+
+/** Call from a user gesture (touchend/click) to unlock iOS audio. Safe to call repeatedly. */
 export function unlock() {
   try {
+    if ('audioSession' in navigator) { try { navigator.audioSession.type = 'playback'; } catch (_) { /* ignore */ } }
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
+    if (!unlocked) {
+      // the classic unlock: play a silent buffer inside the gesture
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(ctx.destination); src.start(0);
+      const a = new Audio(SILENT_WAV);
+      a.setAttribute('playsinline', '');
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => {});
+      unlocked = true;
+    }
   } catch (_) { /* no audio available */ }
 }
 

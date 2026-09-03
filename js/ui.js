@@ -62,11 +62,16 @@ function dispatch(action) {
   afterDispatch(prev, action);
 }
 
-function afterDispatch(prev) {
+function afterDispatch(prev, action) {
   if (state.phase === 'round-end' && prev.phase !== 'round-end') {
     const h = state.round.winningHand;
-    if (h && h.count === 5) { S.play('fanfare'); confetti(); }
-    else S.play('pata');
+    if (h && h.count === 5) {
+      S.play('fanfare'); confetti();
+      if (action.type === 'ROLL') { // the carabina just landed: show it on the table first
+        ui.overlayDelay = true; ui.overlayKey = null; renderOverlay();
+        setTimeout(() => { ui.overlayDelay = false; ui.overlayKey = null; renderOverlay(); }, 1900);
+      }
+    } else S.play('pata');
   }
   if (state.phase === 'game-over' && prev.phase !== 'game-over') { S.play('fanfare'); confetti(); }
   if (state.phase === 'setup') releaseWake(); else requestWake();
@@ -80,9 +85,9 @@ let settleTimer = null;
 function scheduleSettle() {
   clearTimeout(settleTimer);
   if (!G.turnComplete(state) || ui.resumePrompt) return;
-  const key = JSON.stringify(state.turn);
+  const key = JSON.stringify([state.turn, state.desempate]);
   settleTimer = setTimeout(() => {
-    if (G.turnComplete(state) && JSON.stringify(state.turn) === key && !ui.busy) dispatch({ type: 'STOP' });
+    if (G.turnComplete(state) && JSON.stringify([state.turn, state.desempate]) === key && !ui.busy) dispatch({ type: 'STOP' });
   }, SETTLE_MS);
 }
 
@@ -365,6 +370,7 @@ function updateMessage() {
   } else if (ph === 'desempate') {
     const d = state.desempate;
     who = pname(actor); what = T('msg.desempate'); sub = T('msg.desempateSub', { names: d.contenders.map((i) => pname(i)).join(' · ') });
+    if (G.turnComplete(state)) what = handLabel(d.results[actor].hand);
   } else if (ph === 'handoff') { who = pname(state.handoff.to); what = T('msg.handoff'); }
   else if (ph === 'round-end' || ph === 'game-over') {
     const r = state.round;
@@ -429,7 +435,8 @@ function switchLang(l) {
 function renderOverlay() {
   let key = ''; let html = '';
   const ph = state.phase;
-  if (ui.resumePrompt) {
+  if (ui.overlayDelay && ph === 'round-end') { /* dice first, card in a moment */ }
+  else if (ui.resumePrompt) {
     key = 'resume';
     html = `<div class="card"><div class="checker"></div><h2>${t('resume.title')}</h2><p>${t('resume.round', { n: state.round ? state.round.number : '—' })} · ${state.players.map((p) => `${esc(p.name)} ${p.patas}`).join(' · ')}</p>
       <div class="actions"><button class="btn" data-o="resume">${t('resume.continue')}</button><button class="btn secondary" data-o="abandon">${t('btn.newTable')}</button></div></div>`;
@@ -582,8 +589,7 @@ async function requestWake() {
 }
 function releaseWake() { try { if (wake) wake.release(); } catch (_) { /* ignore */ } wake = null; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.phase !== 'setup') requestWake(); });
-document.addEventListener('pointerdown', S.unlock, { passive: true });
-document.addEventListener('touchstart', S.unlock, { passive: true });
+for (const ev of ['touchend', 'click', 'pointerup', 'keydown']) document.addEventListener(ev, S.unlock, { passive: true });
 
 /* ---------- go ---------- */
 render();

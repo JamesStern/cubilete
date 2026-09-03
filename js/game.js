@@ -214,26 +214,15 @@ export function reduce(prev, action, rollDie) {
       }
       if (s.phase === 'desempate') {
         const d = s.desempate;
+        if (d.ptr >= d.contenders.length) return prev;
         const who = d.contenders[d.ptr];
         const dice = rollFive(rollDie);
         const hand = evaluate(dice);
         d.results[who] = { dice, hand };
         log(s, 'log.desempateRoll', { name: name(s, who), hand });
         d.ptr++;
-        if (d.ptr < d.contenders.length) {
-          gate(s, d.contenders[d.ptr], 'desempate');
-          return s;
-        }
-        const { winners } = bestOf(d.contenders.map((i) => d.results[i].hand));
-        const tied = winners.map((w) => d.contenders[w]);
-        if (tied.length === 1) {
-          if (d.results[tied[0]].hand.count === 5) s.round.carabina = { player: tied[0], hand: d.results[tied[0]].hand };
-          s.round.desempate = d;
-          endRound(s, tied[0], d.results[tied[0]].hand);
-        } else {
-          log(s, 'log.tieAgain');
-          startDesempate(s, tied);
-        }
+        if (d.ptr < d.contenders.length) gate(s, d.contenders[d.ptr], 'desempate');
+        // else: all have rolled — the table shows the last hand until STOP resolves it
         return s;
       }
       return prev;
@@ -255,6 +244,21 @@ export function reduce(prev, action, rollDie) {
       return s;
     }
     case 'STOP': {
+      if (s.phase === 'desempate') {
+        const d = s.desempate;
+        if (d.ptr < d.contenders.length) return prev;
+        const { winners } = bestOf(d.contenders.map((i) => d.results[i].hand));
+        const tied = winners.map((w) => d.contenders[w]);
+        if (tied.length === 1) {
+          if (d.results[tied[0]].hand.count === 5) s.round.carabina = { player: tied[0], hand: d.results[tied[0]].hand };
+          s.round.desempate = d;
+          endRound(s, tied[0], d.results[tied[0]].hand);
+        } else {
+          log(s, 'log.tieAgain');
+          startDesempate(s, tied);
+        }
+        return s;
+      }
       if (s.phase !== 'turn') return prev;
       if (s.turn.rollsUsed < 1) return prev;
       finishTurn(s);
@@ -293,13 +297,14 @@ export function currentActor(s) {
     case 'handoff': return s.handoff.to;
     case 'draw': return s.draw.contenders[s.draw.ptr];
     case 'turn': return s.turn.player;
-    case 'desempate': return s.desempate.contenders[s.desempate.ptr];
+    case 'desempate': return s.desempate.contenders[Math.min(s.desempate.ptr, s.desempate.contenders.length - 1)];
     default: return null;
   }
 }
 
 /** True when the current turn has used every roll and only needs to be closed with STOP. */
 export function turnComplete(s) {
+  if (s.phase === 'desempate') return s.desempate.ptr >= s.desempate.contenders.length;
   return s.phase === 'turn' && s.turn.dice !== null && s.turn.rollsUsed >= s.turn.maxRolls;
 }
 
