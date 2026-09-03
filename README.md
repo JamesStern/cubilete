@@ -34,6 +34,7 @@ Source rules: https://www.onsitecigars.com/how-to-play-cubilete/ (gaps filled wi
 - English by default; switch to Spanish from the title screen or Settings. Game terms (As, Rey, Cundanga, Jeva, Gallego, Negro, patas, desempate, and every *Carabina de …*) keep their proper names in both languages.
 - Pass-and-play at one phone: 2–6 seats, any mix of people and computer players. Play to 5, 10 or 15 patas.
 - The computer plays an exact expected-value strategy (full enumeration of the 252 hand states, target-aware: it knows what it has to beat, how many players follow, and how the opener's cap changes the odds). Each computer seat has a personality — Ignacio plays it straight, Papa chases carabinas, Honest Lil stands early — and a *Casual* or *Sharp* level; they talk at the table.
+- **How to play**: a guided first round on the real table with scripted dice — who opens, what to keep, why the As counts, how the round resolves, and what a carabina is.
 - **Ask Papa**: on your turn, a hint shows which dice the engine would keep and whether it would stand.
 - Session scoreboard with patas, rounds and carabinas; the game resumes exactly where you left it if the app is closed.
 - **The bar tab**: the loser of every game owes a round. A persistent ledger keeps rounds owed, games, wins, carabinas and best hand per player, with the last games listed — and a *Settle up* button for when somebody actually pays.
@@ -71,6 +72,7 @@ js/ai.js              exact DP opponent (pure)
 js/i18n.js            English/Spanish strings and hand labels
 js/personas.js        computer personalities and their bar talk
 js/ledger.js          the bar tab and lifetime record
+js/tutorial.js        the guided first round (dice script + coach steps)
 js/dice.js            SVG dice faces and the leather cup
 js/sound.js           Web Audio synth
 js/ui.js              rendering, input, AI driver, persistence, SW registration

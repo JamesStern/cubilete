@@ -30,7 +30,7 @@ function row(L, name, type) {
 
 /** Fold a finished game into the ledger. Idempotent per state.gameId. */
 export function recordGame(ledger, state, now = Date.now()) {
-  if (state.phase !== 'game-over' || !state.gameId || ledger.recorded.includes(state.gameId)) return ledger;
+  if (state.phase !== 'game-over' || state.tutorial || !state.gameId || ledger.recorded.includes(state.gameId)) return ledger;
   const L = JSON.parse(JSON.stringify(ledger));
   const buyer = buyerOf(state);
   for (const p of state.players) {

@@ -8,6 +8,7 @@ import { APP_VERSION } from './version.js';
 import { t, handLabel, logLine, quips, setLang, getLang, LANGS } from './i18n.js';
 import { PERSONAS, line as personaLine } from './personas.js';
 import { LEDGER_KEY, emptyLedger, recordGame, settleUp, standings, totalOwed } from './ledger.js';
+import { TUTORIAL_QUEUE, TUTORIAL_SEATS, TUTORIAL_STEPS } from './tutorial.js';
 
 const KEY = 'cubilete.state';
 const SEATS_KEY = 'cubilete.seats.v2'; // key bumped so the new default names replace previously saved seats once
@@ -17,6 +18,7 @@ document.body.appendChild(overlayEl);
 
 /* ---------- randomness (with a debug hook: localStorage.debugRolls = "[6,6,6,6,6]") ---------- */
 function rollDie() {
+  if (tutActive() && tut.queue.length) { const v = tut.queue.shift(); saveTut(); return v; }
   try {
     const dbg = localStorage.getItem('debugRolls');
     if (dbg) {
@@ -45,6 +47,39 @@ let ledger = emptyLedger();
 try { const raw = localStorage.getItem(LEDGER_KEY); if (raw) { const l = JSON.parse(raw); if (l && l.v === 1) ledger = l; } } catch (_) { /* ignore */ }
 function saveLedger() { try { localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger)); } catch (_) { /* ignore */ } }
 const TARGET_KEY = 'cubilete.target';
+/* ---------- tutorial ---------- */
+const TUT_KEY = 'cubilete.tutorial';
+let tut = null; // { step, queue }
+try { const raw = localStorage.getItem(TUT_KEY); if (raw) tut = JSON.parse(raw); } catch (_) { /* ignore */ }
+function saveTut() { try { if (tut) localStorage.setItem(TUT_KEY, JSON.stringify(tut)); else localStorage.removeItem(TUT_KEY); } catch (_) { /* ignore */ } }
+function tutActive() { return !!(tut && state.tutorial && state.phase !== 'setup'); }
+function tutStep() { return tutActive() ? TUTORIAL_STEPS[Math.min(tut.step, TUTORIAL_STEPS.length - 1)] : null; }
+function tutAllows(action) { const st = tutStep(); return !st || st.allow.includes(action); }
+function startTutorial() {
+  tut = { step: 0, queue: TUTORIAL_QUEUE.slice() };
+  saveTut();
+  ui.screen = ''; ui.overlayKey = null;
+  dispatch({ type: 'SETUP_CONFIRM', tutorial: true, targetPatas: 10, players: TUTORIAL_SEATS.map((p) => ({ ...p })) });
+}
+function finishTutorial() {
+  tut = null; saveTut();
+  try { localStorage.setItem('cubilete.tutorialDone', '1'); } catch (_) { /* ignore */ }
+  ui.overlayKey = null;
+  dispatch({ type: 'NEW_GAME' });
+  render();
+}
+function tutNext() {
+  const st = tutStep();
+  if (!st) return;
+  if (st.finish) { finishTutorial(); return; }
+  tut.step++; saveTut();
+  if (st.next === 'stop') dispatch({ type: 'STOP' });
+  else { render(); scheduleAi(); }
+}
+function tutCheck() {
+  const st = tutStep();
+  if (st && st.done && st.done(state)) { tut.step++; saveTut(); }
+}
 
 let state = load();
 const ui = {
@@ -56,6 +91,7 @@ if (!state) state = G.initialState();
 S.setMuted(!!state.settings.muted);
 setLang(state.settings.lang || 'en');
 document.documentElement.lang = getLang();
+if (state.tutorial && !tut) state = G.initialState(); // a half-finished tutorial with no script: start over
 
 let aiTimer = null;
 function dispatch(action) {
@@ -69,6 +105,7 @@ function dispatch(action) {
 }
 
 function afterDispatch(prev, action) {
+  if (tutActive()) { tutCheck(); render(); }
   barTalk(prev, action);
   if (state.phase === 'game-over' && prev.phase !== 'game-over') { ledger = recordGame(ledger, state); saveLedger(); ui.overlayKey = null; renderOverlay(); }
   if (state.phase === 'round-end' && prev.phase !== 'round-end') {
@@ -93,6 +130,7 @@ let settleTimer = null;
 function scheduleSettle() {
   clearTimeout(settleTimer);
   if (!G.turnComplete(state) || ui.resumePrompt) return;
+  if (tutStep() && tutStep().holdSettle) return;
   const key = JSON.stringify([state.turn, state.desempate]);
   settleTimer = setTimeout(() => {
     if (G.turnComplete(state) && JSON.stringify([state.turn, state.desempate]) === key && !ui.busy) dispatch({ type: 'STOP' });
@@ -248,7 +286,8 @@ function renderSetup() {
     </div>
     <div class="foot">
       <button class="btn" id="start">${t('setup.start')}<small>${t('setup.startSub')}</small></button>
-      <div class="links"><button id="open-rules">${t('setup.rules')}</button><button id="open-meet2">${t('meet.btn')}</button><button id="open-ledger">${t('tab.open')}</button><button id="open-settings">${t('setup.settings')}</button></div>
+      ${(() => { try { return localStorage.getItem('cubilete.tutorialDone') ? '' : `<div class="firsttime">${t('tut.firstTime')} <button id="start-tut2">${t('tut.link')}</button></div>`; } catch (_) { return ''; } })()}
+      <div class="links"><button id="start-tut">${t('tut.link')}</button><button id="open-rules">${t('setup.rules')}</button><button id="open-meet2">${t('meet.btn')}</button><button id="open-ledger">${t('tab.open')}</button><button id="open-settings">${t('setup.settings')}</button></div>
       ${isIphone && !standalone ? `<div class="a2hs">${t('setup.a2hs')}</div>` : ''}
     </div>
   </div>`;
@@ -269,6 +308,7 @@ function renderSetup() {
   });
   app.querySelector('#open-ledger').addEventListener('click', () => { S.play('click'); openLedger(); });
   for (const id of ['#open-meet', '#open-meet2']) app.querySelector(id).addEventListener('click', () => { S.play('click'); ui.meetOpen = true; ui.overlayKey = null; renderOverlay(); });
+  for (const id of ['#start-tut', '#start-tut2']) { const b = app.querySelector(id); if (b) b.addEventListener('click', () => { S.play('click'); startTutorial(); }); }
   app.querySelector('#lang-toggle').addEventListener('click', () => { S.play('click'); switchLang(LANGS.find((l) => l !== getLang())); });
   app.querySelector('#start').addEventListener('click', () => {
     saveSeats();
@@ -333,7 +373,23 @@ function ensureTable() {
   app.querySelector('#dice').addEventListener('click', onDieTap);
 }
 
+function renderCoach() {
+  const box = app.querySelector('#onTable');
+  const st = tutStep();
+  if (!st) { if (box.innerHTML) { box.innerHTML = ''; box.dataset.key = ''; } return; }
+  const key = 'coach' + tut.step + getLang();
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const faces = st.faces ? `<div class="faces">${[R.ACE, R.KING, R.QUEEN, R.JACK, R.GALLEGO, R.NEGRO].map((f) => `<div class="f"><span class="mini-die md">${faceSVG(f)}</span>${R.FACE_NAME[f]}</div>`).join('')}</div>` : '';
+  const actions = st.finish ? `<div class="actions"><button class="btn" data-c="finish">${t('tut.play')}</button></div>`
+    : st.next ? `<div class="actions"><button class="btn" data-c="next">${t('tut.next')}</button></div>` : '';
+  box.innerHTML = `<div class="coach"><div class="hdr"><span>${t('tut.stepOf', { n: tut.step + 1, m: TUTORIAL_STEPS.length })}</span><button data-c="skip">${t('tut.skip')}</button></div>
+    <div class="txt">${t('tut.' + st.id)}</div>${faces}${actions}</div>`;
+  box.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => { S.play('click'); if (b.dataset.c === 'skip' || b.dataset.c === 'finish') finishTutorial(); else tutNext(); }));
+}
+
 function updateTable() {
+  renderCoach();
   const r = state.round;
   app.querySelector('#roundlbl').innerHTML = r ? t('top.round', { n: r.number }) : t('top.opening');
   updateScores();
@@ -407,8 +463,10 @@ function updateDice() {
     el.classList.remove('in-cup');
     el.classList.toggle('win', highlight === 'win');
     el.classList.toggle('carabina', highlight === 'carabina');
-    const canHold = ph === 'turn' && dice && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && state.turn.rollsUsed < state.turn.maxRolls && !ui.busy;
+    const canHold = ph === 'turn' && dice && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && state.turn.rollsUsed < state.turn.maxRolls && !ui.busy && tutAllows('hold');
     el.disabled = !canHold;
+    const st = tutStep();
+    el.classList.toggle('coach-die', !!(st && st.mask && dice && st.mask[i] && !held[i]));
   });
   const complete = G.turnComplete(state);
   const hint = ui.hint && ph === 'turn' && ui.hint.key === hintKey() ? ui.hint : null;
@@ -460,7 +518,7 @@ function updateMessage() {
     who = pname(r.winner); what = handLabel(r.winningHand); sub = T('msg.patas', { n: r.patasAwarded });
   }
   let extra = '';
-  if (ph === 'turn' && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && !G.turnComplete(state) && !ui.busy && !(ui.hint && ui.hint.key === hintKey())) {
+  if (ph === 'turn' && !tutActive() && state.players[state.turn.player].type === 'human' && state.turn.rollsUsed >= 1 && !G.turnComplete(state) && !ui.busy && !(ui.hint && ui.hint.key === hintKey())) {
     extra = `<button class="hintbtn" data-a="hint">${t('hint.btn')}</button>`;
   }
   m.innerHTML = `<div class="who">${who}</div><div class="what">${what}</div><div class="sub">${sub}</div>${extra}`;
@@ -482,16 +540,17 @@ function updateControls() {
   const human = actor !== null && state.players[actor].type === 'human';
   const busy = ui.busy;
   let html = '';
-  if (ph === 'draw') html = human ? `<button class="btn" data-a="draw" ${busy ? 'disabled' : ''}>${t('btn.drawRoll')}<small>${t('btn.drawRollSub')}</small></button>` : `<button class="btn" disabled>${t('btn.waiting', { name: pname(actor) })}</button>`;
-  else if (ph === 'draw-done') html = `<button class="btn" data-a="continue">${t('btn.openRound')}<small>${t('btn.opens', { name: pname(state.draw.opener) })}</small></button>`;
+  const tg = (a) => (tutActive() ? (tutAllows(a) ? 'coach-target' : 'tut-off') : '');
+  if (ph === 'draw') html = human ? `<button class="btn ${tg('draw')}" data-a="draw" ${busy || !tutAllows('draw') ? 'disabled' : ''}>${t('btn.drawRoll')}<small>${t('btn.drawRollSub')}</small></button>` : `<button class="btn" disabled>${t('btn.waiting', { name: pname(actor) })}</button>`;
+  else if (ph === 'draw-done') html = `<button class="btn ${tg('continue')}" data-a="continue" ${tutAllows('continue') ? '' : 'disabled'}>${t('btn.openRound')}<small>${t('btn.opens', { name: pname(state.draw.opener) })}</small></button>`;
   else if (ph === 'turn') {
     const tn = state.turn;
     if (human) {
-      html = `<button class="btn" data-a="roll" ${busy || tn.rollsUsed >= tn.maxRolls ? 'disabled' : ''}>${t('btn.roll')}<small>${tn.rollsUsed === 0 ? t('btn.rollFirst') : t('btn.rollAgain')}</small></button>
-              <button class="btn secondary" data-a="stop" ${busy || tn.rollsUsed < 1 ? 'disabled' : ''}>${t('btn.stand')}<small>${t('btn.standSub')}</small></button>`;
+      html = `<button class="btn ${tg('roll')}" data-a="roll" ${busy || tn.rollsUsed >= tn.maxRolls || !tutAllows('roll') ? 'disabled' : ''}>${t('btn.roll')}<small>${tn.rollsUsed === 0 ? t('btn.rollFirst') : t('btn.rollAgain')}</small></button>
+              <button class="btn secondary" data-a="stop" ${busy || tn.rollsUsed < 1 || (tutActive() && !tutAllows('stop')) ? 'disabled' : ''}>${t('btn.stand')}<small>${t('btn.standSub')}</small></button>`;
     } else html = `<button class="btn" disabled>${t('btn.thinking', { name: pname(actor) })}</button>`;
   } else if (ph === 'desempate') html = human ? `<button class="btn" data-a="roll" ${busy ? 'disabled' : ''}>${t('btn.roll')}<small>${t('btn.tiebreakSub')}</small></button>` : `<button class="btn" disabled>${t('btn.waiting', { name: pname(actor) })}</button>`;
-  else if (ph === 'round-end') html = `<button class="btn" data-a="continue">${state.players.some((p) => p.patas >= state.targetPatas) ? t('btn.result') : t('btn.next')}</button>`;
+  else if (ph === 'round-end') html = tutActive() ? '' : `<button class="btn" data-a="continue">${state.players.some((p) => p.patas >= state.targetPatas) ? t('btn.result') : t('btn.next')}</button>`;
   else if (ph === 'game-over') html = `<button class="btn" data-a="rematch">${t('btn.rematch')}</button><button class="btn secondary" data-a="new">${t('btn.newTable')}</button>`;
   c.innerHTML = html;
 }
@@ -531,6 +590,7 @@ function renderOverlay() {
   let key = ''; let html = '';
   const ph = state.phase;
   if (ui.overlayDelay && ph === 'round-end') { /* dice first, card in a moment */ }
+  else if (ui.resumePrompt && state.tutorial) { ui.resumePrompt = false; }
   else if (ui.resumePrompt) {
     key = 'resume';
     html = `<div class="card"><div class="checker"></div><h2>${t('resume.title')}</h2><p>${t('resume.round', { n: state.round ? state.round.number : '—' })} · ${state.players.map((p) => `${esc(p.name)} ${p.patas}`).join(' · ')}</p>
@@ -588,7 +648,7 @@ function renderOverlay() {
     const what = t('handoff.' + state.handoff.resume);
     html = `<div class="card handoff"><div class="checker"></div><h2>${t('handoff.title')}</h2><div class="cup">${cupSVG()}</div><h1>${pname(state.handoff.to)}</h1><p>${what}</p>
       <div class="actions"><button class="btn" data-o="continue">${t('handoff.btn')}</button></div></div>`;
-  } else if (ph === 'round-end') {
+  } else if (ph === 'round-end' && !tutActive()) {
     const r = state.round;
     key = 'round-end' + r.number;
     const h = r.winningHand;

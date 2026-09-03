@@ -463,6 +463,45 @@ test('ledger: records once per game, picks the buyer, keeps the best hand, settl
   eq(L.recordGame(led, { ...s, phase: 'turn' }, 1).games.length, 1, 'only finished games are recorded');
 });
 
+
+/* ---------- tutorial script ---------- */
+const TU = await import('../js/tutorial.js');
+test('the tutorial dice script plays out exactly as narrated', () => {
+  const queue = TU.TUTORIAL_QUEUE.slice();
+  const roll = () => { if (!queue.length) throw new Error('script ran dry'); return queue.shift(); };
+  let s = G.reduce(G.initialState(), { type: 'SETUP_CONFIRM', tutorial: true, players: TU.TUTORIAL_SEATS }, roll);
+  ok(s.tutorial); eq(s.phase, 'draw');
+  let step = 2; // welcome, faces need no state
+  const st = () => TU.TUTORIAL_STEPS[step];
+  const advance = () => { while (st().done && st().done(s)) step++; };
+  s = G.reduce(s, { type: 'DRAW_ROLL' }, roll); s = G.reduce(s, { type: 'DRAW_ROLL' }, roll);
+  eq(s.phase, 'draw-done'); eq(s.draw.opener, 0); advance(); eq(st().id, 'drawDone');
+  s = G.reduce(s, { type: 'CONTINUE' }, roll); advance(); eq(st().id, 'roll1');
+  s = G.reduce(s, { type: 'ROLL' }, roll); deepEq(s.turn.dice, R.parseDice('K K Q 10 9')); eq(handLabel(s.turn.hand, 'en'), 'Pair of Reyes'); advance(); eq(st().id, 'hold');
+  s = G.reduce(s, { type: 'TOGGLE_HOLD', i: 0 }, roll); advance(); eq(st().id, 'hold', 'one die is not enough');
+  s = G.reduce(s, { type: 'TOGGLE_HOLD', i: 1 }, roll); advance(); eq(st().id, 'roll2');
+  s = G.reduce(s, { type: 'ROLL' }, roll); deepEq(s.turn.dice, R.parseDice('K K A J 9')); eq(handLabel(s.turn.hand, 'en'), 'Three Reyes'); advance(); eq(st().id, 'holdAce');
+  s = G.reduce(s, { type: 'TOGGLE_HOLD', i: 2 }, roll); advance(); eq(st().id, 'roll3');
+  s = G.reduce(s, { type: 'ROLL' }, roll); deepEq(s.turn.dice, R.parseDice('K K A K 9')); eq(handLabel(s.turn.hand, 'en'), 'Four Reyes'); ok(G.turnComplete(s)); advance(); eq(st().id, 'final');
+  step++; s = G.reduce(s, { type: 'STOP' }, roll); eq(st().id, 'ignacio'); eq(s.turn.player, 1); eq(s.round.rollCap, 3);
+  // Ignacio plays the scripted dice with the real engine
+  let guard = 0;
+  while (s.phase === 'turn' && guard++ < 10) {
+    if (s.turn.rollsUsed === 0) { s = G.reduce(s, { type: 'ROLL' }, roll); continue; }
+    if (G.turnComplete(s)) { s = G.reduce(s, { type: 'STOP' }, roll); break; }
+    const d = AI.decide(G.aiInputs(s), { style: 'cool', level: 'sharp' });
+    if (d.stop) { s = G.reduce(s, { type: 'STOP' }, roll); break; }
+    s = G.reduce(s, { type: 'SET_HOLD', held: d.hold }, roll); s = G.reduce(s, { type: 'ROLL' }, roll);
+  }
+  eq(s.phase, 'round-end'); eq(s.round.winner, 0); eq(handLabel(s.round.results[1].hand, 'en'), 'Four Cundangas'); eq(s.players[0].patas, 1);
+  advance(); eq(st().id, 'result'); eq(queue.length, 0, 'every scripted die was used');
+  const L2 = L.recordGame(L.emptyLedger(), { ...s, phase: 'game-over', winner: 0 }, 1);
+  eq(L2.games.length, 0, 'tutorial games never reach the tab');
+});
+test('every tutorial step has narration in both languages', () => {
+  for (const st of TU.TUTORIAL_STEPS) for (const l of ['en', 'es']) ok(t('tut.' + st.id, {}, l) !== 'tut.' + st.id, `${st.id} ${l}`);
+});
+
 print(`\n${pass} passed, ${fail} failed`);
 if (isNode) process.exitCode = fail ? 1 : 0;
 export const results = { out, pass, fail };

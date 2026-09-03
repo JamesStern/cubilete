@@ -437,3 +437,17 @@ html, body { background: var(--mahogany-deep); }
 .meet h3 { font-family: var(--serif-head); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--cohiba); margin: 14px 0 4px; }
 .setup .links { flex-wrap: wrap; justify-content: center; }
 .setup .links { gap: 10px 14px; }
+
+/* tutorial coach */
+.coach { margin: 6px 12px 0; background: linear-gradient(180deg, #4a2617, var(--mahogany-deep)); border: 1px solid var(--cohiba); border-radius: 12px; padding: 8px 12px 8px; box-shadow: 0 8px 20px rgba(0,0,0,.5); animation: fade .25s ease-out; }
+.coach .hdr { display: flex; justify-content: space-between; align-items: center; font-family: var(--serif-head); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--cohiba); }
+.coach .hdr button { background: none; border: 0; color: var(--bone); opacity: .7; font-family: var(--serif-head); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; text-decoration: underline; text-underline-offset: 2px; padding: 2px 0; }
+.coach .txt { font-size: 14px; line-height: 1.35; color: var(--ivory); margin-top: 3px; }
+.coach .faces { display: flex; justify-content: space-between; gap: 4px; margin: 6px 0 2px; }
+.coach .faces .f { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; font-family: var(--serif-head); letter-spacing: .04em; text-transform: uppercase; color: var(--bone); }
+.coach .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.coach .actions .btn { flex: 0 0 auto; padding: 8px 16px 7px; font-size: 12px; max-width: none; }
+.die.coach-die { outline: 3px dashed var(--cohiba); outline-offset: 3px; animation: glow 1s ease-in-out infinite alternate; }
+.btn.coach-target { animation: glow 1s ease-in-out infinite alternate; }
+.setup .firsttime { font-size: 13px; color: var(--bone); text-align: center; }
+.setup .firsttime button { background: none; border: 0; color: var(--cohiba); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 0 2px; }

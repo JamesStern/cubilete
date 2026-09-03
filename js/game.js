@@ -159,6 +159,7 @@ export function reduce(prev, action, rollDie) {
         };
       });
       s.targetPatas = [5, 10, 15].includes(action.targetPatas) ? action.targetPatas : 10;
+      s.tutorial = !!action.tutorial;
       s.gameId = newGameId();
       s.log = [];
       // one human at the table never needs to pass the phone
