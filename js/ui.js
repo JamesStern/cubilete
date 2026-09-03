@@ -619,6 +619,7 @@ function quip() { const q = quips(); return q[(state.round ? state.round.number 
 function switchLang(l) {
   dispatch({ type: 'SET_SETTING', key: 'lang', value: l });
   setLang(l);
+  applyRotateMsg();
   document.documentElement.lang = l;
   ui.screen = ''; ui.overlayKey = null;
   render();
@@ -831,6 +832,11 @@ function releaseWake() { try { if (wake) wake.release(); } catch (_) { /* ignore
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.phase !== 'setup') requestWake(); });
 for (const ev of ['touchend', 'click', 'pointerup', 'keydown']) document.addEventListener(ev, S.unlock, { passive: true });
 
+/* ---------- portrait only ---------- */
+function applyRotateMsg() { const el = document.getElementById('rotate-msg'); if (el) el.textContent = t('rotate'); }
+try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(() => {}); } catch (_) { /* iOS: no lock API; the CSS shield covers it */ }
+
 /* ---------- go ---------- */
+applyRotateMsg();
 render();
 if (!ui.resumePrompt) { scheduleSettle(); scheduleAi(); if (state.phase !== 'setup') requestWake(); }

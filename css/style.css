@@ -467,3 +467,10 @@ body[data-screen="setup"] .scene .bar { top: 50%; }
 .tally .row .lbl { margin-left: auto; font-style: italic; }
 .tally .row.best { border: 1px solid rgba(245,184,46,.6); }
 .tally .row.pending { opacity: .6; }
+
+/* portrait only: on a sideways phone the table is covered until it is turned back */
+.rotate-shield { display: none; position: fixed; inset: 0; z-index: 200; background: var(--mahogany-deep); color: var(--cohiba); place-items: center; text-align: center; padding: 24px; }
+.rotate-shield .ph { width: 34px; height: 60px; border: 3px solid var(--cohiba); border-radius: 8px; margin: 0 auto 14px; animation: turn 1.6s ease-in-out infinite; }
+.rotate-shield .msg { font-family: var(--serif-head); font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
+@keyframes turn { 0%, 20% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0); } }
+@media (orientation: landscape) and (max-height: 600px) { .rotate-shield { display: grid; } }
