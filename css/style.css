@@ -39,17 +39,17 @@ input { font: inherit; }
 /* whatever the viewport does, the ground behind everything is the bar top, not a flat strip */
 html, body { background: var(--mahogany-deep); }
 .scene .sky {
-  position: absolute; left: 0; right: 0; top: 0; height: 36%;
+  position: absolute; left: 0; right: 0; top: 0; height: 30%;
   background: linear-gradient(180deg, #2b1a4a 0%, #6b2c57 28%, #d8623a 58%, #f4a54a 82%, #f7c76e 100%);
 }
 .scene .sun {
-  position: absolute; left: 50%; top: 24%; width: 26vw; height: 26vw; max-width: 130px; max-height: 130px;
+  position: absolute; left: 50%; top: 20%; width: 26vw; height: 26vw; max-width: 130px; max-height: 130px;
   transform: translate(-50%, -50%); border-radius: 50%;
   background: radial-gradient(circle, #fff1b8 0%, #f9c65a 45%, rgba(249, 198, 90, 0) 72%);
   box-shadow: 0 0 60px 20px rgba(249, 198, 90, 0.35);
 }
 .scene .sea {
-  position: absolute; left: 0; right: 0; top: 35%; height: 12%;
+  position: absolute; left: 0; right: 0; top: 29.5%; height: 19%;
   background: linear-gradient(180deg, #e88a4f 0%, #3f8f9a 12%, var(--sea) 40%, var(--sea-deep) 100%);
 }
 .scene .sea::after {
@@ -58,10 +58,10 @@ html, body { background: var(--mahogany-deep); }
   mask-image: linear-gradient(180deg, rgba(0,0,0,.9), transparent 70%);
   -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,.9), transparent 70%);
 }
-.scene .palms { position: absolute; left: 0; right: 0; top: 8%; height: 30%; opacity: .55; }
+.scene .palms { position: absolute; left: 0; right: 0; top: 6%; height: 26%; opacity: .55; }
 .scene .palms svg { width: 100%; height: 100%; }
 .scene .bar {
-  position: absolute; left: 0; right: 0; top: 46%; bottom: 0;
+  position: absolute; left: 0; right: 0; top: 48%; bottom: 0;
   background:
     linear-gradient(180deg, rgba(255, 210, 140, 0.25), rgba(0,0,0,0) 12%),
     repeating-linear-gradient(94deg, rgba(0,0,0,0.08) 0 3px, rgba(255,255,255,0.025) 3px 9px, rgba(0,0,0,0.05) 9px 14px),
@@ -294,7 +294,7 @@ html, body { background: var(--mahogany-deep); }
 .setup { position: relative; z-index: 1; height: 100dvh; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: var(--sa-top) 0 0; }
 @supports (height: 100dvh) { .setup { height: 100dvh; } }
 .setup .hero { text-align: center; padding: 14px 16px 6px; }
-.setup .hero h1 { font-family: var(--serif-head); font-size: 40px; letter-spacing: .22em; margin: 0; color: var(--cohiba); text-shadow: 0 2px 0 #4a2617, 0 0 24px rgba(245,184,46,.35); }
+.setup .hero h1 { font-family: var(--serif-head); font-size: 40px; letter-spacing: .22em; margin: 0; color: var(--cohiba); text-shadow: 0 2px 0 #4a2617, 0 3px 10px rgba(0,0,0,.55), 0 0 24px rgba(245,184,46,.35); }
 .setup .hero .sub { font-style: italic; color: var(--ivory); font-size: 15px; letter-spacing: .06em; text-shadow: 0 1px 2px #000; }
 .setup .hero .stripe { width: 180px; margin: 10px auto 0; }
 .setup .cupart { width: 86px; height: 120px; margin: 0 auto; filter: drop-shadow(0 10px 12px rgba(0,0,0,.6)); }
@@ -451,3 +451,10 @@ html, body { background: var(--mahogany-deep); }
 .btn.coach-target { animation: glow 1s ease-in-out infinite alternate; }
 .setup .firsttime { font-size: 13px; color: var(--bone); text-align: center; }
 .setup .firsttime button { background: none; border: 0; color: var(--cohiba); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 0 2px; }
+
+/* title screen: the sea starts just under the cup so CUBILETE always sits on the water */
+body[data-screen="setup"] .scene .sky { height: calc(var(--sa-top) + 150px); }
+body[data-screen="setup"] .scene .sun { top: calc(var(--sa-top) + 78px); }
+body[data-screen="setup"] .scene .sea { top: calc(var(--sa-top) + 148px); height: auto; bottom: 50%; }
+body[data-screen="setup"] .scene .palms { top: calc(var(--sa-top) + 20px); height: 150px; }
+body[data-screen="setup"] .scene .bar { top: 50%; }

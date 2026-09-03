@@ -235,6 +235,7 @@ function barTalk(prev, action) {
 
 /* ---------- render ---------- */
 function render() {
+  document.body.dataset.screen = state.phase === 'setup' ? 'setup' : 'table';
   if (state.phase === 'setup') renderSetup();
   else { ensureTable(); updateTable(); }
   renderOverlay();
