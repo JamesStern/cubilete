@@ -89,7 +89,7 @@ input { font: inherit; }
 #app {
   position: relative; z-index: 1; height: 100dvh; height: 100vh;
   display: grid; grid-template-rows: auto auto 1fr auto auto;
-  padding-top: var(--sa-top); padding-bottom: var(--sa-bottom);
+  padding-top: var(--sa-top);
 }
 @supports (height: 100dvh) { #app { height: 100dvh; } }
 
@@ -118,7 +118,7 @@ input { font: inherit; }
 
 /* ---------- scoreboard ---------- */
 .scores {
-  display: flex; gap: 6px; padding: 8px 10px 4px; overflow-x: auto; scrollbar-width: none;
+  display: flex; gap: 6px; padding: 8px 10px 10px; overflow-x: auto; scrollbar-width: none;
   background: linear-gradient(180deg, rgba(20,10,6,.55), rgba(20,10,6,0));
 }
 .scores::-webkit-scrollbar { display: none; }
@@ -130,8 +130,13 @@ input { font: inherit; }
 }
 .seat.active { border-color: var(--cohiba); box-shadow: 0 0 0 1px var(--cohiba), 0 0 18px var(--glow); transform: translateY(-2px); }
 .seat.opener::before { content: "♛"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--cohiba); background: var(--mahogany-deep); padding: 0 4px; border-radius: 6px; }
-.seat .name { font-family: var(--serif-head); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--bone); }
-.seat .name .ai { color: var(--cohiba); opacity: .8; font-size: 9px; }
+.seat .name { font-family: var(--serif-head); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; line-height: 1.15; min-height: 23px; display: flex; align-items: center; justify-content: center; color: var(--bone); overflow: hidden; word-break: break-word; }
+.seat .tag {
+  position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--serif-head); font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--cohiba);
+  background: var(--mahogany-deep); border: 1px solid rgba(245,184,46,.55); border-radius: 6px; padding: 1px 5px; max-width: 95%; overflow: hidden; text-overflow: ellipsis;
+}
+.seat.active .tag { border-color: var(--cohiba); }
 .seat .patas { font-family: var(--numeral); font-size: 26px; line-height: 1; color: var(--ivory); margin: 2px 0 1px; text-shadow: 0 1px 0 #000; }
 .seat .chips { display: flex; justify-content: center; gap: 2px; height: 6px; }
 .seat .chips i { width: 5px; height: 5px; border-radius: 50%; background: var(--cohiba); display: block; box-shadow: 0 1px 0 #000; }
@@ -230,8 +235,8 @@ input { font: inherit; }
 .btn.ghost { background: none; box-shadow: none; border: 1px solid rgba(241,230,200,.35); color: var(--bone); }
 
 .ticker {
-  padding: 4px 14px 6px; font-size: 12px; color: var(--bone); opacity: .85; font-style: italic;
-  background: linear-gradient(0deg, rgba(0,0,0,.6), rgba(0,0,0,0)); min-height: 28px; text-align: center;
+  padding: 4px 14px calc(8px + var(--sa-bottom)); font-size: 12px; color: var(--bone); font-style: italic;
+  background: linear-gradient(0deg, rgba(0,0,0,.7) 0, rgba(0,0,0,.45) 45%, rgba(0,0,0,0) 100%); min-height: 28px; text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -280,7 +285,7 @@ input { font: inherit; }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
 
 /* ---------- setup ---------- */
-.setup { position: relative; z-index: 1; height: 100dvh; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: var(--sa-top) 0 var(--sa-bottom); }
+.setup { position: relative; z-index: 1; height: 100dvh; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: var(--sa-top) 0 0; }
 @supports (height: 100dvh) { .setup { height: 100dvh; } }
 .setup .hero { text-align: center; padding: 14px 16px 6px; }
 .setup .hero h1 { font-family: var(--serif-head); font-size: 40px; letter-spacing: .22em; margin: 0; color: var(--cohiba); text-shadow: 0 2px 0 #4a2617, 0 0 24px rgba(245,184,46,.35); }
@@ -306,7 +311,7 @@ input { font: inherit; }
 .seatrow .rm { background: none; border: 0; color: var(--bone); opacity: .6; font-size: 20px; width: 28px; }
 .setup .addrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
 .setup .addrow button { background: none; border: 1px dashed rgba(245,184,46,.6); color: var(--cohiba); border-radius: 8px; padding: 8px 12px; font-family: var(--serif-head); letter-spacing: .08em; font-size: 12px; text-transform: uppercase; }
-.setup .foot { padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.setup .foot { padding: 8px 14px calc(12px + var(--sa-bottom)); display: flex; flex-direction: column; gap: 8px; align-items: center; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,0)); }
 .setup .foot .btn { width: 100%; max-width: 440px; }
 .setup .links { display: flex; gap: 16px; font-size: 13px; }
 .setup .links button { background: none; border: 0; color: var(--bone); text-decoration: underline; text-underline-offset: 3px; opacity: .85; }

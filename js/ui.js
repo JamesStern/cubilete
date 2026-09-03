@@ -268,7 +268,8 @@ function updateScores() {
     const chips = Array.from({ length: Math.min(p.patas, 10) }, (_, k) => `<i class="${k >= 5 ? 'big' : ''}"></i>`).join('');
     const hand = res ? miniHand(res.dice) : (r && r.winner === null && actor === p.id && state.phase !== 'round-end' ? '<span style="opacity:.6">…</span>' : '<span style="opacity:.35">—</span>');
     return `<div class="seat ${actor === p.id ? 'active' : ''} ${r && r.openerIdx === p.id ? 'opener' : ''}">
-      <div class="name">${esc(p.name)}${p.type === 'ai' ? ' <span class="ai">⚙</span>' : ''}</div>
+      <div class="name">${esc(p.name)}</div>
+      ${p.type === 'ai' ? `<div class="tag">${t('seat.ai')}</div>` : ''}
       <div class="patas">${p.patas}</div>
       <div class="chips">${chips}</div>
       <div class="hand">${hand}</div>
